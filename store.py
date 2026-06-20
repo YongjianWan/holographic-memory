@@ -3,6 +3,7 @@ SQLite-backed fact store with entity resolution and trust scoring.
 Single-user Hermes memory store plugin.
 """
 
+import difflib
 import re
 import sqlite3
 import threading
@@ -93,6 +94,33 @@ _RE_AKA          = re.compile(
 
 def _clamp_trust(value: float) -> float:
     return max(_TRUST_MIN, min(_TRUST_MAX, value))
+
+
+def _split_aliases(aliases: str | None) -> list[str]:
+    """Split a comma-separated alias string into a list."""
+    if not aliases:
+        return []
+    return [a.strip() for a in aliases.split(",") if a.strip()]
+
+
+class _UnionFind:
+    """Simple union-find for entity clustering."""
+
+    def __init__(self, items: list[int]) -> None:
+        self._parent: dict[int, int] = {item: item for item in items}
+
+    def find(self, item: int) -> int:
+        parent = self._parent
+        while parent[item] != item:
+            parent[item] = parent[parent[item]]  # path compression
+            item = parent[item]
+        return item
+
+    def union(self, a: int, b: int) -> None:
+        root_a = self.find(a)
+        root_b = self.find(b)
+        if root_a != root_b:
+            self._parent[root_b] = root_a
 
 
 class MemoryStore:
@@ -391,6 +419,197 @@ class MemoryStore:
                 "helpful_count": row["helpful_count"] + helpful_increment,
             }
 
+    def normalize_entities(
+        self,
+        edit_threshold: float = 0.8,
+        token_threshold: float = 0.85,
+    ) -> dict:
+        """Merge fragmented entity variants into canonical entities.
+
+        Uses string edit distance and token overlap to cluster near-duplicate
+        entity names (e.g. "K2.7", "K2_7", "k2.7"). For each cluster, keeps
+        the entity with the most fact links as canonical, moves the other
+        names into `aliases`, repoints `fact_entities` foreign keys, and
+        recomputes HRR vectors for affected facts.
+
+        Returns a report dict with clusters_merged, entities_merged,
+        facts_reindexed, categories_rebuilt.
+        """
+        with self._lock:
+            # Load all entities.
+            rows = self._conn.execute(
+                "SELECT entity_id, name, aliases, created_at FROM entities"
+            ).fetchall()
+            if len(rows) < 2:
+                return {
+                    "clusters_merged": 0,
+                    "entities_merged": 0,
+                    "facts_reindexed": 0,
+                    "categories_rebuilt": [],
+                }
+
+            entities = [dict(r) for r in rows]
+            entity_ids = [e["entity_id"] for e in entities]
+            entities_by_id: dict[int, dict] = {e["entity_id"]: e for e in entities}
+
+            # Fact-link counts per entity (for canonical selection).
+            fact_counts: dict[int, int] = {}
+            for r in self._conn.execute(
+                "SELECT entity_id, COUNT(*) AS c FROM fact_entities GROUP BY entity_id"
+            ).fetchall():
+                fact_counts[int(r["entity_id"])] = r["c"]
+
+            # Pairwise similarity clustering.
+            n = len(entities)
+            uf = _UnionFind(entity_ids)
+
+            for i in range(n):
+                for j in range(i + 1, n):
+                    name_a = entities[i]["name"]
+                    name_b = entities[j]["name"]
+
+                    if self._entity_names_match(
+                        name_a, name_b, edit_threshold, token_threshold
+                    ):
+                        uf.union(entities[i]["entity_id"], entities[j]["entity_id"])
+
+            clusters: dict[int, set[int]] = {}
+            for eid in entity_ids:
+                root = uf.find(eid)
+                clusters.setdefault(root, set()).add(eid)
+
+            # Filter to clusters with more than one member.
+            merge_clusters = {
+                root: members for root, members in clusters.items() if len(members) > 1
+            }
+
+            if not merge_clusters:
+                return {
+                    "clusters_merged": 0,
+                    "entities_merged": 0,
+                    "facts_reindexed": 0,
+                    "categories_rebuilt": [],
+                }
+
+            affected_fact_ids: set[int] = set()
+            categories_to_rebuild: set[str] = set()
+            entities_merged = 0
+
+            for root, members in merge_clusters.items():
+                # Sort members to choose canonical: most fact links, then earliest.
+                sorted_members = sorted(
+                    members,
+                    key=lambda eid: (
+                        -fact_counts.get(eid, 0),
+                        entities_by_id[eid]["created_at"] or "",
+                        eid,
+                    )
+                )
+                canonical_id = sorted_members[0]
+                canonical_entity = entities_by_id[canonical_id]
+
+                # Collect all unique names in the cluster (case-insensitive dedup).
+                unique_names: dict[str, str] = {}  # lowercase -> original
+                for eid in sorted_members:
+                    ent = entities_by_id[eid]
+                    for raw_name in [ent["name"]] + _split_aliases(ent["aliases"]):
+                        key = raw_name.strip().lower()
+                        if key and key not in unique_names:
+                            unique_names[key] = raw_name.strip()
+
+                # Aliases = all unique names except the canonical display name.
+                canonical_key = canonical_entity["name"].strip().lower()
+                alias_names = [
+                    name for key, name in unique_names.items() if key != canonical_key
+                ]
+                alias_str = ", ".join(alias_names)
+
+                # Update canonical entity aliases.
+                self._conn.execute(
+                    "UPDATE entities SET aliases = ? WHERE entity_id = ?",
+                    (alias_str, canonical_id),
+                )
+
+                # Repoint fact_entities and track affected facts.
+                for eid in sorted_members[1:]:
+                    fact_rows = self._conn.execute(
+                        "SELECT fact_id FROM fact_entities WHERE entity_id = ?",
+                        (eid,),
+                    ).fetchall()
+                    for fr in fact_rows:
+                        affected_fact_ids.add(int(fr["fact_id"]))
+
+                    # Move links to canonical, ignoring duplicates.
+                    self._conn.execute(
+                        """
+                        INSERT OR IGNORE INTO fact_entities (fact_id, entity_id)
+                        SELECT fact_id, ? FROM fact_entities WHERE entity_id = ?
+                        """,
+                        (canonical_id, eid),
+                    )
+                    self._conn.execute(
+                        "DELETE FROM fact_entities WHERE entity_id = ?",
+                        (eid,),
+                    )
+                    self._conn.execute(
+                        "DELETE FROM entities WHERE entity_id = ?",
+                        (eid,),
+                    )
+                    entities_merged += 1
+
+            self._conn.commit()
+
+            # Recompute HRR vectors for affected facts.
+            if affected_fact_ids and self._hrr_available:
+                for fact_id in affected_fact_ids:
+                    row = self._conn.execute(
+                        "SELECT content, category FROM facts WHERE fact_id = ?",
+                        (fact_id,),
+                    ).fetchone()
+                    if row is None:
+                        continue
+                    self._compute_hrr_vector(fact_id, row["content"])
+                    categories_to_rebuild.add(row["category"])
+
+                for category in categories_to_rebuild:
+                    self._rebuild_bank(category)
+
+            return {
+                "clusters_merged": len(merge_clusters),
+                "entities_merged": entities_merged,
+                "facts_reindexed": len(affected_fact_ids),
+                "categories_rebuilt": sorted(categories_to_rebuild),
+            }
+
+    @staticmethod
+    def _entity_names_match(
+        name_a: str,
+        name_b: str,
+        edit_threshold: float,
+        token_threshold: float,
+    ) -> bool:
+        """Return True if two entity names are near-duplicates."""
+        if name_a.lower() == name_b.lower():
+            return True
+
+        a_lower = name_a.lower()
+        b_lower = name_b.lower()
+
+        # Edit distance similarity via difflib.
+        edit_sim = difflib.SequenceMatcher(None, a_lower, b_lower).ratio()
+        if edit_sim >= edit_threshold:
+            return True
+
+        # Token overlap.
+        tokens_a = set(re.findall(r"[a-z0-9]+", a_lower))
+        tokens_b = set(re.findall(r"[a-z0-9]+", b_lower))
+        if not tokens_a or not tokens_b:
+            return False
+        intersection = len(tokens_a & tokens_b)
+        union = len(tokens_a | tokens_b)
+        token_sim = intersection / union if union else 0.0
+        return token_sim >= token_threshold
+
     # ------------------------------------------------------------------
     # Entity helpers
     # ------------------------------------------------------------------
@@ -435,20 +654,24 @@ class MemoryStore:
 
         Returns the entity_id.
         """
-        # Exact name match
+        name_lower = name.strip().lower()
+
+        # Exact name match (case-insensitive, no LIKE wildcards).
         row = self._conn.execute(
-            "SELECT entity_id FROM entities WHERE name LIKE ?", (name,)
+            "SELECT entity_id FROM entities WHERE LOWER(name) = ?", (name_lower,)
         ).fetchone()
         if row is not None:
             return int(row["entity_id"])
 
-        # Search aliases — aliases stored as comma-separated; use LIKE with % boundaries
+        # Search aliases — aliases stored as comma-separated.
+        # Escape LIKE wildcards in the input to avoid '_' matching any character.
+        safe_name = name_lower.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         alias_row = self._conn.execute(
-            """
+            f"""
             SELECT entity_id FROM entities
-            WHERE ',' || aliases || ',' LIKE '%,' || ? || ',%'
+            WHERE ',' || LOWER(aliases) || ',' LIKE '%,' || ? || ',%' ESCAPE '\\'
             """,
-            (name,),
+            (safe_name,),
         ).fetchone()
         if alias_row is not None:
             return int(alias_row["entity_id"])

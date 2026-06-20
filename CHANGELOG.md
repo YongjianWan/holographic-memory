@@ -11,12 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - RRF (Reciprocal Rank Fusion) based `FactRetriever.search` combining FTS5, Jaccard token overlap, and HRR vector similarity using rank positions instead of raw scores.
 - Multiplicative trust/recency boosts centered at 1.0 (±10% for trust).
 - Graceful fallback to FTS5 + Jaccard RRF when numpy is unavailable.
-- Unit tests for RRF search under `tests/test_retrieval_rrf.py`.
+- `MemoryStore.normalize_entities()` for merging fragmented entity variants (e.g. "K2.7" / "K2_7") into canonical entities with aliases.
+- `fact_store` tool `normalize` action to trigger entity normalization.
+- Unit tests for RRF search and entity normalization under `tests/`.
 - `tests/conftest.py` with minimal stubs for hermes internal modules so tests can run standalone.
-- `AGENTS.md` documenting architecture constraints, development rules, and roadmap.
+- `AGENTS.md`, `PATCHES.md`, and scaffold files (`TECH_DEBT.md`, `SESSION.md`, `SOUL.md`) documenting architecture, decisions, and debt.
 
 ### Fixed
 - Aligned HRR query encoding in search with the fact vector's content component: query text is now `bind(encode_text(...), ROLE_CONTENT)` before comparison, matching the pattern used in `probe()`.
+- Fixed `_resolve_entity` alias lookup: SQLite `LIKE` treated `_` and `%` as wildcards, causing incorrect entity matches (e.g. "K2_7" matching "K2.7"). Now uses case-insensitive equality for names and escaped LIKE for aliases.
 
 ### Changed
 - Removed `fts_weight`, `jaccard_weight`, and `hrr_weight` configuration options and constructor parameters.

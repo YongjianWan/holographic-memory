@@ -48,6 +48,7 @@ FACT_STORE_SCHEMA = {
         "• related — What connects to an entity? Structural adjacency.\n"
         "• reason — Compositional: facts connected to MULTIPLE entities simultaneously.\n"
         "• contradict — Memory hygiene: find facts making conflicting claims.\n"
+        "• normalize — Merge fragmented entity variants (e.g. 'K2.7' / 'K2_7').\n"
         "• update/remove/list — CRUD operations.\n\n"
         "IMPORTANT: Before answering questions about the user, ALWAYS probe or reason first."
     ),
@@ -56,7 +57,7 @@ FACT_STORE_SCHEMA = {
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["add", "search", "probe", "related", "reason", "contradict", "update", "remove", "list"],
+                "enum": ["add", "search", "probe", "related", "reason", "contradict", "update", "remove", "list", "normalize"],
             },
             "content": {"type": "string", "description": "Fact content (required for 'add')."},
             "query": {"type": "string", "description": "Search query (required for 'search')."},
@@ -332,6 +333,10 @@ class HolographicMemoryProvider(MemoryProvider):
                     limit=int(args.get("limit", 10)),
                 )
                 return json.dumps({"facts": facts, "count": len(facts)})
+
+            elif action == "normalize":
+                report = store.normalize_entities()
+                return json.dumps({"normalized": True, "report": report})
 
             else:
                 return tool_error(f"Unknown action: {action}")

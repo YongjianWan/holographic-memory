@@ -46,6 +46,7 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 | trust 非对称反馈（+0.05 / -0.10） | ✅ 已有 | `store.py` |
 | `probe` / `related` / `reason` / `contradict` | ✅ 已有 | `retrieval.py` |
 | RRF 三路融合（RQ） | ✅ 已实现 | `retrieval.py` |
+| entity 归一化（P1-1） | ✅ 已实现 | `store.py` |
 | 近重复检测（P0） | ❌ 未实现 | 待写入 `store.py` |
 | entity 归一化（P1-1） | ❌ 未实现 | 待写入 `store.py` |
 | 惰性 GC / 语义合并 / trust 衰减（P1） | ❌ 未实现 | 待写入 `__init__.py` / 新模块 |
