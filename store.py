@@ -6,8 +6,10 @@ Single-user Hermes memory store plugin.
 import difflib
 import math
 import re
+import shutil
 import sqlite3
 import threading
+from collections.abc import Callable
 from pathlib import Path
 
 try:
@@ -75,7 +77,105 @@ CREATE TABLE IF NOT EXISTS memory_banks (
     fact_count INTEGER DEFAULT 0,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS schema_version (
+    version     INTEGER PRIMARY KEY,
+    applied_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
+
+
+# ------------------------------------------------------------------------------
+# Schema migrations
+# ------------------------------------------------------------------------------
+
+
+def _migration_v1_ensure_hrr_vector(conn: sqlite3.Connection) -> None:
+    """Formalize the historical hrr_vector column addition as migration v1."""
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(facts)").fetchall()}
+    if "hrr_vector" not in columns:
+        conn.execute("ALTER TABLE facts ADD COLUMN hrr_vector BLOB")
+
+
+def _migration_v2_documents(conn: sqlite3.Connection) -> None:
+    """Add documents table and link facts to their source document."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS documents (
+            doc_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            raw_text    TEXT NOT NULL,
+            source      TEXT DEFAULT '',
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(facts)").fetchall()}
+    if "source_doc_id" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE facts
+            ADD COLUMN source_doc_id INTEGER
+                REFERENCES documents(doc_id)
+                ON DELETE SET NULL
+            """
+        )
+
+
+_MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
+    _migration_v1_ensure_hrr_vector,
+    _migration_v2_documents,
+]
+
+
+def _get_schema_version(conn: sqlite3.Connection) -> int | None:
+    """Return the recorded schema version, or None if the table does not exist."""
+    try:
+        row = conn.execute("SELECT version FROM schema_version").fetchone()
+    except sqlite3.OperationalError:
+        # schema_version table does not exist yet.
+        return None
+    return int(row["version"]) if row is not None else None
+
+
+def _set_schema_version(conn: sqlite3.Connection, version: int) -> None:
+    # Keep exactly one row: the current schema version.
+    conn.execute("DELETE FROM schema_version")
+    conn.execute(
+        "INSERT INTO schema_version (version) VALUES (?)",
+        (version,),
+    )
+
+
+def _run_migrations(conn: sqlite3.Connection, db_path: Path) -> None:
+    """Apply pending migrations, backing up the database before any change.
+
+    Legacy databases without a schema_version table are baselined by inspecting
+    the current schema: presence of the hrr_vector column means they are already
+    at v1.
+    """
+    current = _get_schema_version(conn)
+    if current is None:
+        # Baseline detection for pre-migration databases.
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(facts)").fetchall()}
+        current = 1 if "hrr_vector" in columns else 0
+        _set_schema_version(conn, current)
+        conn.commit()
+
+    target = len(_MIGRATIONS)
+    if current >= target:
+        return
+
+    # Backup once before applying any new migrations. Do not overwrite an
+    # existing backup so previous recovery points remain intact.
+    backup_path = Path(f"{db_path}.bak.v{current}")
+    if not backup_path.exists():
+        shutil.copy2(db_path, backup_path)
+
+    for version in range(current + 1, target + 1):
+        _MIGRATIONS[version - 1](conn)
+        _set_schema_version(conn, version)
+        conn.commit()
 
 # Trust adjustment constants
 _HELPFUL_DELTA   =  0.05
@@ -241,17 +341,16 @@ class MemoryStore:
     # ------------------------------------------------------------------
 
     def _init_db(self) -> None:
-        """Create tables, indexes, and triggers if they do not exist. Enable WAL mode."""
+        """Create tables, indexes, and triggers if they do not exist, then run migrations."""
         # Use the shared WAL-fallback helper so memory_store.db degrades
         # gracefully on NFS/SMB/FUSE-mounted HERMES_HOME (same issue as
         # state.db / kanban.db — see hermes_state._WAL_INCOMPAT_MARKERS).
         from hermes_state import apply_wal_with_fallback
         apply_wal_with_fallback(self._conn, db_label="memory_store.db (holographic)")
+        # SQLite disables foreign-key enforcement by default.
+        self._conn.execute("PRAGMA foreign_keys = ON")
         self._conn.executescript(_SCHEMA)
-        # Migrate: add hrr_vector column if missing (safe for existing databases)
-        columns = {row[1] for row in self._conn.execute("PRAGMA table_info(facts)").fetchall()}
-        if "hrr_vector" not in columns:
-            self._conn.execute("ALTER TABLE facts ADD COLUMN hrr_vector BLOB")
+        _run_migrations(self._conn, self.db_path)
         self._conn.commit()
 
     # ------------------------------------------------------------------

@@ -6,7 +6,7 @@
 
 ## 当前焦点
 
-已按用户要求回头加固 entity 归一化：加了 numeric/date/version signature 守门，防止"K2"和"K2.7"这类层级关系被误当碎裂合并。测试已补。下一步回到 `holo-改造方案.md` §8，进入 **输入侧：文档入口 + 存原文**（§3.5），或先搭 **P1 GC 惰性定时器壳**。
+已完成 migration 框架 + v2 schema（`documents` 表 + `facts.source_doc_id`）。下一步实现 `retain_document(raw_text)` 文档入口：LLM 一次性提炼成原子 facts，原文存 documents，facts 带 `source_doc_id`。
 
 ## 进行中
 

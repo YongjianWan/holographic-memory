@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `MemoryStore.normalize_entities()` for merging fragmented entity variants (e.g. "K2.7" / "K2_7") into canonical entities with aliases; canonical selection prefers the most specific name (digits/punctuation/length) to avoid collapsing into vague forms.
 - Numeric/date/version signature gate in entity clustering: "K2" and "K2.7" (series vs version) are no longer merged even when string similarity is high.
 - Tightened default entity normalization thresholds (edit 0.85 / token 0.9) to further reduce false merges while still catching spacing/punctuation variants.
+- Schema migration framework with `schema_version` table, automatic baseline detection for legacy databases, and pre-migration `.db.bak.v{n}` backups.
+- Migration v2: added `documents` table and nullable `facts.source_doc_id` foreign key (ON DELETE SET NULL) for storing source documents alongside extracted facts.
 - `fact_store` tool `normalize` action to trigger entity normalization.
 - Write-time near-duplicate detection in `add_fact` using FTS5 coarse retrieval + Jaccard token overlap; merges wording variants before INSERT.
 - `near_duplicate_threshold` plugin config option (default `0.8`) to tune write-time dedup sensitivity.

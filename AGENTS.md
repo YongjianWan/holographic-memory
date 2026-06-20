@@ -48,8 +48,10 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 | RRF 三路融合（RQ） | ✅ 已实现 | `retrieval.py` |
 | entity 归一化（P1-1） | ✅ 已实现 | `store.py` |
 | 近重复检测（P0） | ✅ 已实现 | `store.py` |
+| migration 框架 + `schema_version` | ✅ 已实现 | `store.py` |
+| `documents` 表 + `facts.source_doc_id` | ✅ 已实现 | `store.py` |
+| 文档入口 `retain_document`（§3.5） | ❌ 未实现 | 待写入 `store.py` / `__init__.py` |
 | 惰性 GC / 语义合并 / trust 衰减（P1） | ❌ 未实现 | 待写入 `__init__.py` / 新模块 |
-| 文档入口 + 存原文（§3.5） | ❌ 未实现 | 待新增 `documents` 表 |
 | `fact_edges` 图边 + CTE 多跳（P2） | ❌ 未实现 | 待新增 |
 
 ## 4. 开发约定
@@ -60,11 +62,13 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 2. 改动涉及数据库 schema 时，先确认现有用户数据库路径（默认 `$HERMES_HOME/memory_store.db`），并提供真 migration + 备份提示。
 3. 不要修改 `holographic.py` 中的 HRR 数学语义，除非你有充分理由并同步更新所有调用点。
 
-### 4.2 数据安全铁律
+### 4.2 数据安全 / migration 铁律
 
 - **禁止 DROP TABLE / DROP DATABASE / 删库重建**。
 - 加列/加表用 `ALTER TABLE ... ADD COLUMN` 或 `CREATE TABLE ... INSERT INTO ... SELECT` 迁移。
-- 引入 schema 版本号；启动时按版本顺序执行 migration 脚本。
+- 启动时按 `schema_version` 顺序执行 migration；老库没有 `schema_version` 表时，必须根据实际 schema 反推基线版本（当前以 `hrr_vector` 列存在与否为界）。
+- 每次升级前在代码里硬做备份：复制 `.db.bak.v{current}`，不覆盖已有备份。
+- 每个 migration 函数必须内部幂等（`IF NOT EXISTS` / `PRAGMA table_info` 自检）。
 - 任何会改表结构的操作，文档/日志里都要提醒用户先备份 `.db`。
 
 ### 4.3 检索质量（RQ）红线

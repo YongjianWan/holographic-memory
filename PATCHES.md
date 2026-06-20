@@ -144,4 +144,34 @@ if sig_a or sig_b:
 
 ---
 
+## Patch 6 — Schema migration 框架 + documents 表（v2）
+
+**问题**
+项目第一次真正变更 schema（新增 `documents` 表 + `facts.source_doc_id`）。之前只有 ad-hoc 的 `hrr_vector` 列特判，没有版本号管理。
+
+**处置**
+✅ **已应用**。搭起最小 migration 框架并把 v2 作为第一个 schema 变更 migration。
+
+**代码位置**
+`store.py`：`_run_migrations`、`_MIGRATIONS`、`_migration_v2_documents`。
+
+**实现要点**
+- `schema_version` 表单行记录当前版本；`_set_schema_version` 先 `DELETE` 再 `INSERT`，避免多行累积导致版本读取歧义。
+- 老库没有 `schema_version` 表时，用 `hrr_vector` 列存在与否反推基线版本（v0 或 v1）。
+- 升级前先复制 `.db.bak.v{current}`，不覆盖已有备份。
+- v2 migration：
+  - `CREATE TABLE IF NOT EXISTS documents`
+  - `ALTER TABLE facts ADD COLUMN source_doc_id INTEGER REFERENCES documents(doc_id) ON DELETE SET NULL`
+- `MemoryStore._init_db` 启用 `PRAGMA foreign_keys = ON`。
+- 每个 migration 函数内部自检（`IF NOT EXISTS` / `PRAGMA table_info`），保证幂等。
+
+**理由**
+方案 §7 禁止删库重建；任何 schema 变更必须走真 migration。这次变更小，正好用来验证框架，避免 P2 建 `fact_edges` 表时再来一次 ad-hoc ALTER。
+
+**遗留尾巴**
+- 当前基线探测只认 `hrr_vector`。如果未来出现更多 pre-migration 中间状态，需要扩展探测逻辑。
+- `retain_document` 的 LLM 提炼逻辑本次未实现，留到下一步。
+
+---
+
 *Last updated: 2026-06-20*
