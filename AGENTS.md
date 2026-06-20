@@ -66,8 +66,10 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 
 - **禁止 DROP TABLE / DROP DATABASE / 删库重建**。
 - 加列/加表用 `ALTER TABLE ... ADD COLUMN` 或 `CREATE TABLE ... INSERT INTO ... SELECT` 迁移。
-- 启动时按 `schema_version` 顺序执行 migration；老库没有 `schema_version` 表时，必须根据实际 schema 反推基线版本（当前以 `hrr_vector` 列存在与否为界）。
-- 每次升级前在代码里硬做备份：复制 `.db.bak.v{current}`，不覆盖已有备份。
+- 启动时按 `schema_version` 顺序执行 migration；老库没有 `schema_version` 表时，必须根据实际 schema 反推基线版本（从最新结构往回匹配：先查 `documents`/`source_doc_id`，再查 `hrr_vector`）。
+- `_SCHEMA` 必须始终保持为**最新完整结构**；空库初始化后即为最新版本，不需要跑 migration。
+- 每次升级前在代码里硬做备份：`PRAGMA wal_checkpoint(FULL)` 后再复制 `.db.bak.v{current}`，不覆盖已有备份。
+- migration 期间 `PRAGMA foreign_keys = OFF`，结束后开启并执行 `PRAGMA foreign_key_check`；有 violations 必须抛异常，不能留下脏状态。
 - 每个 migration 函数必须内部幂等（`IF NOT EXISTS` / `PRAGMA table_info` 自检）。
 - 任何会改表结构的操作，文档/日志里都要提醒用户先备份 `.db`。
 

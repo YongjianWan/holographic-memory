@@ -18,6 +18,14 @@ except ImportError:
     import holographic as hrr  # type: ignore[no-redef]
 
 _SCHEMA = """
+CREATE TABLE IF NOT EXISTS documents (
+    doc_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    raw_text    TEXT NOT NULL,
+    source      TEXT DEFAULT '',
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS facts (
     fact_id         INTEGER PRIMARY KEY AUTOINCREMENT,
     content         TEXT NOT NULL UNIQUE,
@@ -28,6 +36,7 @@ CREATE TABLE IF NOT EXISTS facts (
     helpful_count   INTEGER DEFAULT 0,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    source_doc_id   INTEGER REFERENCES documents(doc_id) ON DELETE SET NULL,
     hrr_vector      BLOB
 );
 
@@ -98,7 +107,7 @@ def _migration_v1_ensure_hrr_vector(conn: sqlite3.Connection) -> None:
 
 
 def _migration_v2_documents(conn: sqlite3.Connection) -> None:
-    """Add documents table and link facts to their source document."""
+    """Ensure documents table and source_doc_id link exist on legacy databases."""
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS documents (
@@ -147,35 +156,68 @@ def _set_schema_version(conn: sqlite3.Connection, version: int) -> None:
     )
 
 
+def _detect_schema_version(conn: sqlite3.Connection) -> int:
+    """Infer the schema version for legacy DBs without schema_version table.
+
+    Matches from newest to oldest so that a fresh database created from the
+    latest _SCHEMA is immediately recognised as up-to-date.
+    """
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(facts)").fetchall()}
+    tables = {
+        r[0]
+        for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+    }
+    if "source_doc_id" in columns and "documents" in tables:
+        return 2
+    if "hrr_vector" in columns:
+        return 1
+    return 0
+
+
 def _run_migrations(conn: sqlite3.Connection, db_path: Path) -> None:
     """Apply pending migrations, backing up the database before any change.
 
-    Legacy databases without a schema_version table are baselined by inspecting
-    the current schema: presence of the hrr_vector column means they are already
-    at v1.
+    Foreign keys are disabled during migrations so that ALTER/CREATE statements
+    are not blocked by constraints, then re-enabled and checked afterwards.
     """
-    current = _get_schema_version(conn)
-    if current is None:
-        # Baseline detection for pre-migration databases.
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(facts)").fetchall()}
-        current = 1 if "hrr_vector" in columns else 0
-        _set_schema_version(conn, current)
-        conn.commit()
+    # SQLite foreign keys are disabled by default; remember the current state.
+    fk_state = conn.execute("PRAGMA foreign_keys").fetchone()[0]
+    conn.execute("PRAGMA foreign_keys = OFF")
 
-    target = len(_MIGRATIONS)
-    if current >= target:
-        return
+    try:
+        current = _get_schema_version(conn)
+        if current is None:
+            # Baseline detection for pre-migration databases.
+            current = _detect_schema_version(conn)
+            _set_schema_version(conn, current)
+            conn.commit()
 
-    # Backup once before applying any new migrations. Do not overwrite an
-    # existing backup so previous recovery points remain intact.
-    backup_path = Path(f"{db_path}.bak.v{current}")
-    if not backup_path.exists():
-        shutil.copy2(db_path, backup_path)
+        target = len(_MIGRATIONS)
+        if current >= target:
+            return
 
-    for version in range(current + 1, target + 1):
-        _MIGRATIONS[version - 1](conn)
-        _set_schema_version(conn, version)
-        conn.commit()
+        # Backup once before applying any new migrations. In WAL mode the main
+        # .db file may lag the WAL, so checkpoint first to ensure the backup is
+        # complete. Do not overwrite an existing backup.
+        backup_path = Path(f"{db_path}.bak.v{current}")
+        if not backup_path.exists():
+            conn.execute("PRAGMA wal_checkpoint(FULL)")
+            shutil.copy2(db_path, backup_path)
+
+        for version in range(current + 1, target + 1):
+            _MIGRATIONS[version - 1](conn)
+            _set_schema_version(conn, version)
+            conn.commit()
+    finally:
+        # Re-enable foreign keys and verify consistency before returning.
+        conn.execute("PRAGMA foreign_keys = ON")
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise sqlite3.IntegrityError(
+                f"Foreign key violations after migration: {violations}"
+            )
 
 # Trust adjustment constants
 _HELPFUL_DELTA   =  0.05
@@ -347,8 +389,6 @@ class MemoryStore:
         # state.db / kanban.db — see hermes_state._WAL_INCOMPAT_MARKERS).
         from hermes_state import apply_wal_with_fallback
         apply_wal_with_fallback(self._conn, db_label="memory_store.db (holographic)")
-        # SQLite disables foreign-key enforcement by default.
-        self._conn.execute("PRAGMA foreign_keys = ON")
         self._conn.executescript(_SCHEMA)
         _run_migrations(self._conn, self.db_path)
         self._conn.commit()

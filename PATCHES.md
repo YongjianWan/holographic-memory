@@ -168,8 +168,14 @@ if sig_a or sig_b:
 **理由**
 方案 §7 禁止删库重建；任何 schema 变更必须走真 migration。这次变更小，正好用来验证框架，避免 P2 建 `fact_edges` 表时再来一次 ad-hoc ALTER。
 
+**后续修复（同 commit）**
+- `_SCHEMA` 改为最新完整结构，`documents` 表和 `facts.source_doc_id` 直接写进 `_SCHEMA`；空库初始化后即为 v2，不需要跑 migration 也不需要 backup。
+- 基线探测从最新版本往回匹配：先查 `source_doc_id`+`documents`，再查 `hrr_vector`，最后 v0。
+- `_run_migrations` 显式管理 FK pragma：migration 期间 `PRAGMA foreign_keys = OFF`，结束后开启并执行 `PRAGMA foreign_key_check`；有 violations 直接抛异常。
+- backup 前执行 `PRAGMA wal_checkpoint(FULL)`，避免 WAL 模式下 `.db` 主文件落后于 WAL 导致备份不完整。
+
 **遗留尾巴**
-- 当前基线探测只认 `hrr_vector`。如果未来出现更多 pre-migration 中间状态，需要扩展探测逻辑。
+- 当前基线探测只认 `hrr_vector`/`documents`/`source_doc_id`。如果未来出现更多 pre-migration 中间状态，需要扩展 `_detect_schema_version`。
 - `retain_document` 的 LLM 提炼逻辑本次未实现，留到下一步。
 
 ---

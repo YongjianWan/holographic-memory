@@ -22,11 +22,10 @@ class TestMigrations:
                 "SELECT version FROM schema_version"
             ).fetchone()
             assert row is not None
-            # Fresh DB starts at baseline v1 (hrr_vector present in _SCHEMA)
-            # and applies v2 right away.
+            # _SCHEMA is the latest structure, so a fresh DB is recognised as
+            # already at v2 and no migrations (and no backup) are needed.
             assert int(row["version"]) == 2
 
-            # documents table and source_doc_id should exist as part of v2.
             tables = {
                 r["name"]
                 for r in store._conn.execute(
@@ -42,6 +41,8 @@ class TestMigrations:
             assert "source_doc_id" in columns
         finally:
             store.close()
+            # No backup should have been created for a fresh empty database.
+            assert not Path(f"{db_path}.bak.v2").exists()
             Path(db_path).unlink(missing_ok=True)
 
     def test_legacy_database_without_schema_version_is_baselined_to_v0(
@@ -160,7 +161,7 @@ class TestMigrations:
             Path(db_path).unlink(missing_ok=True)
 
     def test_backup_created_before_migration(self) -> None:
-        """A legacy DB triggers a backup before schema changes."""
+        """A legacy DB with data triggers a backup before schema changes."""
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
 
@@ -180,6 +181,9 @@ class TestMigrations:
             );
             """
         )
+        conn.execute("INSERT INTO facts (content) VALUES ('legacy fact')")
+        conn.commit()
+        original_size = Path(db_path).stat().st_size
         conn.close()
 
         store = MemoryStore(db_path=db_path, hrr_dim=256)
@@ -187,10 +191,12 @@ class TestMigrations:
             # Baseline is v0, so backup should be .db.bak.v0.
             backup_path = Path(f"{db_path}.bak.v0")
             assert backup_path.exists()
+            # WAL checkpoint before copy should make the backup complete.
+            assert backup_path.stat().st_size >= original_size
         finally:
             store.close()
             Path(db_path).unlink(missing_ok=True)
-            Path(f"{db_path}.bak.v0").unlink(missing_ok=True)
+            backup_path.unlink(missing_ok=True)
 
     def test_source_doc_id_is_nullable(self) -> None:
         """Facts can exist without a source document; bad FKs are rejected."""
