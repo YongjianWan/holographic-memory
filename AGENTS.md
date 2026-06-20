@@ -50,7 +50,8 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 | 近重复检测（P0） | ✅ 已实现 | `store.py` |
 | migration 框架 + `schema_version` | ✅ 已实现 | `store.py` |
 | `documents` 表 + `facts.source_doc_id` | ✅ 已实现 | `store.py` |
-| 文档入口 `retain_document`（§3.5） | ❌ 未实现 | 待写入 `store.py` / `__init__.py` |
+| `documents.text_hash` 去重 | ✅ 已实现 | `store.py` |
+| 文档入口 `retain_document`（§3.5） | ✅ 已实现 | `store.py` / `__init__.py` |
 | 惰性 GC / 语义合并 / trust 衰减（P1） | ❌ 未实现 | 待写入 `__init__.py` / 新模块 |
 | `fact_edges` 图边 + CTE 多跳（P2） | ❌ 未实现 | 待新增 |
 
@@ -84,6 +85,8 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 ### 4.4 库卫生（P0/P1/P2）红线
 
 - **P0 写入探重**必须放在 `add_fact` 的 INSERT 之前，不能依赖 `IntegrityError`。
+- `retain_document` 是输入侧闭环：先按 `text_hash` 去重落地原文，再提炼 fact；提炼失败保留孤儿 document，可重跑。
+- Fallback 提取器只保证“不崩”，不替代 LLM 粒度；fallback fact 必须降 trust 并标记。
 - P0 探重只能用 **FTS5 + Jaccard**，不要用 HRR（新 fact 还没 entities，向量口径不同）。
 - P0 探重的 SQL **不能** 更新 `retrieval_count`，也**不能**过滤低 trust。
 - **P1 必须先做 entity 归一化，再做 P2 建边**——边来自 entity，entity 碎裂则边全脏。

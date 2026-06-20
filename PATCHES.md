@@ -186,4 +186,35 @@ if sig_a or sig_b:
 
 ---
 
+## Patch 7 — `retain_document` 输入侧闭环
+
+**问题**
+`documents` 表和 `facts.source_doc_id` 落完了，但“扔文章 → 提炼原子 fact → 关联回原文”中间那段还没写，输入侧悬空。
+
+**处置**
+✅ **已应用**。
+
+**代码位置**
+`store.py`：`retain_document`、`_LocalFallbackExtractor`、`_LLMExtractor`、`add_fact(source_doc_id=...)`。
+`__init__.py`：`fact_store(action='retain')`。
+
+**实现要点**
+- `documents.text_hash` UNIQUE：按 raw_text SHA256 去重，重复 retain 返回同一 `doc_id`。
+- 原文落地与提炼解耦：先存 document（这步必须成功），再尽力提炼；提炼失败/零 fact 也保留孤儿 document，可重跑。
+- 抽取器协议 `FactExtractor`：
+  - `_LocalFallbackExtractor` 只保证“不崩”，按句子切分，产出标记为 `fallback`，初始 trust 0.25，文档里写明不保证原子粒度。
+  - `_LLMExtractor` 通过注入 `model_call(raw_prompt) -> str` 工作，核心包不依赖任何 SDK；失败返回空列表。
+- `add_fact` 扩展 `source_doc_id` 和 `trust` 参数；`_merge_into` 保留已有 source_doc_id，不覆盖。
+- 工具面用 `fact_store(action='retain', content=..., source=..., category=...)`，不新增独立 tool。
+
+**理由**
+输入侧必须是完整闭环，fallback 不假装替代 LLM 粒度，去重解决开发期反复 retain 同一篇的问题，原文与提炼解耦让 LLM 失败时可重试。
+
+**遗留尾巴**
+- LLM prompt 和原子粒度阈值需要在真实文章上调，当前 prompt 是起点。
+- 超长文章 chunking 未做，假设单 prompt 能放下。
+- 没有给 `retain_document` 配置默认 LLM extractor；目前工具面只能用 fallback，LLM 注入需通过代码级调用。
+
+---
+
 *Last updated: 2026-06-20*

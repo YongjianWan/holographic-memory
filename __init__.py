@@ -44,6 +44,7 @@ FACT_STORE_SCHEMA = {
         "fact_store for deep recall and compositional queries.\n\n"
         "ACTIONS (simple → powerful):\n"
         "• add — Store a fact the user would expect you to remember.\n"
+        "• retain — Store a raw document/article and extract atomic facts from it.\n"
         "• search — Keyword lookup ('editor config', 'deploy process').\n"
         "• probe — Entity recall: ALL facts about a person/thing.\n"
         "• related — What connects to an entity? Structural adjacency.\n"
@@ -58,14 +59,15 @@ FACT_STORE_SCHEMA = {
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["add", "search", "probe", "related", "reason", "contradict", "update", "remove", "list", "normalize"],
+                "enum": ["add", "retain", "search", "probe", "related", "reason", "contradict", "update", "remove", "list", "normalize"],
             },
-            "content": {"type": "string", "description": "Fact content (required for 'add')."},
+            "content": {"type": "string", "description": "Fact content (required for 'add') or raw document text (required for 'retain')."},
             "query": {"type": "string", "description": "Search query (required for 'search')."},
             "entity": {"type": "string", "description": "Entity name for 'probe'/'related'."},
             "entities": {"type": "array", "items": {"type": "string"}, "description": "Entity names for 'reason'."},
             "fact_id": {"type": "integer", "description": "Fact ID for 'update'/'remove'."},
             "category": {"type": "string", "enum": ["user_pref", "project", "tool", "general"]},
+            "source": {"type": "string", "description": "Optional source label for 'retain' (e.g. URL or filename)."},
             "tags": {"type": "string", "description": "Comma-separated tags."},
             "trust_delta": {"type": "number", "description": "Trust adjustment for 'update'."},
             "min_trust": {"type": "number", "description": "Minimum trust filter (default: 0.3)."},
@@ -276,6 +278,14 @@ class HolographicMemoryProvider(MemoryProvider):
                     tags=args.get("tags", ""),
                 )
                 return json.dumps({"fact_id": fact_id, "status": "added"})
+
+            elif action == "retain":
+                result = store.retain_document(
+                    args["content"],
+                    source=args.get("source", ""),
+                    category=args.get("category", "general"),
+                )
+                return json.dumps(result)
 
             elif action == "search":
                 results = retriever.search(

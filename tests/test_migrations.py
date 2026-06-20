@@ -8,11 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from holographic.store import MemoryStore, _migration_v2_documents
+from holographic.store import MemoryStore, _migration_v2_documents, _migration_v3_document_hash
 
 
 class TestMigrations:
-    def test_fresh_database_gets_schema_version_2(self) -> None:
+    def test_fresh_database_gets_schema_version_3(self) -> None:
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
 
@@ -23,8 +23,8 @@ class TestMigrations:
             ).fetchone()
             assert row is not None
             # _SCHEMA is the latest structure, so a fresh DB is recognised as
-            # already at v2 and no migrations (and no backup) are needed.
-            assert int(row["version"]) == 2
+            # already at v3 and no migrations (and no backup) are needed.
+            assert int(row["version"]) == 3
 
             tables = {
                 r["name"]
@@ -34,15 +34,21 @@ class TestMigrations:
             }
             assert "documents" in tables
 
-            columns = {
+            fact_columns = {
                 r[1]
                 for r in store._conn.execute("PRAGMA table_info(facts)").fetchall()
             }
-            assert "source_doc_id" in columns
+            assert "source_doc_id" in fact_columns
+
+            doc_columns = {
+                r[1]
+                for r in store._conn.execute("PRAGMA table_info(documents)").fetchall()
+            }
+            assert "text_hash" in doc_columns
         finally:
             store.close()
             # No backup should have been created for a fresh empty database.
-            assert not Path(f"{db_path}.bak.v2").exists()
+            assert not Path(f"{db_path}.bak.v3").exists()
             Path(db_path).unlink(missing_ok=True)
 
     def test_legacy_database_without_schema_version_is_baselined_to_v0(
@@ -81,8 +87,8 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            # Should end at v2 (migrations applied after baseline v0).
-            assert int(row["version"]) == 2
+            # Should end at v3 (migrations applied after baseline v0).
+            assert int(row["version"]) == 3
 
             columns = {
                 r[1]
@@ -90,6 +96,12 @@ class TestMigrations:
             }
             assert "hrr_vector" in columns
             assert "source_doc_id" in columns
+
+            doc_columns = {
+                r[1]
+                for r in store._conn.execute("PRAGMA table_info(documents)").fetchall()
+            }
+            assert "text_hash" in doc_columns
         finally:
             store.close()
             Path(db_path).unlink(missing_ok=True)
@@ -127,13 +139,19 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            assert int(row["version"]) == 2
+            assert int(row["version"]) == 3
 
             columns = {
                 r[1]
                 for r in store._conn.execute("PRAGMA table_info(facts)").fetchall()
             }
             assert "source_doc_id" in columns
+
+            doc_columns = {
+                r[1]
+                for r in store._conn.execute("PRAGMA table_info(documents)").fetchall()
+            }
+            assert "text_hash" in doc_columns
         finally:
             store.close()
             Path(db_path).unlink(missing_ok=True)
@@ -160,8 +178,26 @@ class TestMigrations:
             store.close()
             Path(db_path).unlink(missing_ok=True)
 
+    def test_migration_v3_is_idempotent(self) -> None:
+        """Applying v3 to an already-migrated database is a no-op."""
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            _migration_v3_document_hash(store._conn)
+
+            doc_columns = {
+                r[1]
+                for r in store._conn.execute("PRAGMA table_info(documents)").fetchall()
+            }
+            assert "text_hash" in doc_columns
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
     def test_partial_v2_state_is_detected_as_lower_version(self) -> None:
-        """Baseline detection uses AND: documents table alone is not v2."""
+        """Baseline detection uses AND: documents table without text_hash is not v3."""
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
 
@@ -196,13 +232,19 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            assert int(row["version"]) == 2
+            assert int(row["version"]) == 3
 
             columns = {
                 r[1]
                 for r in store._conn.execute("PRAGMA table_info(facts)").fetchall()
             }
             assert "source_doc_id" in columns
+
+            doc_columns = {
+                r[1]
+                for r in store._conn.execute("PRAGMA table_info(documents)").fetchall()
+            }
+            assert "text_hash" in doc_columns
         finally:
             store.close()
             Path(db_path).unlink(missing_ok=True)
@@ -276,8 +318,8 @@ class TestMigrations:
         store = MemoryStore(db_path=db_path, hrr_dim=256)
         try:
             cur = store._conn.execute(
-                "INSERT INTO documents (raw_text) VALUES (?) RETURNING doc_id",
-                ("raw doc text",),
+                "INSERT INTO documents (raw_text, text_hash) VALUES (?, ?) RETURNING doc_id",
+                ("raw doc text", "a" * 64),
             )
             doc_id = cur.fetchone()["doc_id"]
             store._conn.execute(

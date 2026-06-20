@@ -4,6 +4,7 @@ Single-user Hermes memory store plugin.
 """
 
 import difflib
+import hashlib
 import math
 import re
 import shutil
@@ -11,6 +12,7 @@ import sqlite3
 import threading
 from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol
 
 try:
     from . import holographic as hrr
@@ -21,6 +23,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (
     doc_id      INTEGER PRIMARY KEY AUTOINCREMENT,
     raw_text    TEXT NOT NULL,
+    text_hash   TEXT NOT NULL UNIQUE,
     source      TEXT DEFAULT '',
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -99,6 +102,11 @@ CREATE TABLE IF NOT EXISTS schema_version (
 # ------------------------------------------------------------------------------
 
 
+def _text_hash(raw_text: str) -> str:
+    """Stable SHA256 hash for raw document text (used for deduplication)."""
+    return hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
+
+
 def _migration_v1_ensure_hrr_vector(conn: sqlite3.Connection) -> None:
     """Formalize the historical hrr_vector column addition as migration v1."""
     columns = {row[1] for row in conn.execute("PRAGMA table_info(facts)").fetchall()}
@@ -131,9 +139,31 @@ def _migration_v2_documents(conn: sqlite3.Connection) -> None:
         )
 
 
+def _migration_v3_document_hash(conn: sqlite3.Connection) -> None:
+    """Add text_hash to documents for deduplication of raw text."""
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(documents)").fetchall()}
+    if "text_hash" not in columns:
+        conn.execute("ALTER TABLE documents ADD COLUMN text_hash TEXT")
+    # Backfill any rows that lack a hash. SQLite has no sha256 built-in, so we
+    # compute hashes in Python and update in batches to keep memory bounded.
+    rows = conn.execute(
+        "SELECT doc_id, raw_text FROM documents WHERE text_hash IS NULL"
+    ).fetchall()
+    for doc_id, raw_text in rows:
+        conn.execute(
+            "UPDATE documents SET text_hash = ? WHERE doc_id = ?",
+            (_text_hash(raw_text), doc_id),
+        )
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_text_hash "
+        "ON documents(text_hash)"
+    )
+
+
 _MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _migration_v1_ensure_hrr_vector,
     _migration_v2_documents,
+    _migration_v3_document_hash,
 ]
 
 
@@ -162,18 +192,125 @@ def _detect_schema_version(conn: sqlite3.Connection) -> int:
     Matches from newest to oldest so that a fresh database created from the
     latest _SCHEMA is immediately recognised as up-to-date.
     """
-    columns = {row[1] for row in conn.execute("PRAGMA table_info(facts)").fetchall()}
+    fact_columns = {row[1] for row in conn.execute("PRAGMA table_info(facts)").fetchall()}
+    doc_columns = {row[1] for row in conn.execute("PRAGMA table_info(documents)").fetchall()}
     tables = {
         r[0]
         for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()
     }
-    if "source_doc_id" in columns and "documents" in tables:
+    # `_SCHEMA` creates the latest tables/columns on a fresh DB, but on a
+    # legacy DB the existing `facts` table may still lack columns that the
+    # migrations are responsible for adding. Match the newest version only
+    # when *both* the facts columns and the documents columns are present.
+    if (
+        "text_hash" in doc_columns
+        and "source_doc_id" in fact_columns
+        and "hrr_vector" in fact_columns
+        and "documents" in tables
+    ):
+        return 3
+    if "source_doc_id" in fact_columns and "documents" in tables:
         return 2
-    if "hrr_vector" in columns:
+    if "hrr_vector" in fact_columns:
         return 1
     return 0
+
+
+# ------------------------------------------------------------------------------
+# Document extraction protocol
+# ------------------------------------------------------------------------------
+
+
+class FactExtractor(Protocol):
+    """Pluggable extractor: turns a raw document into atomic fact strings."""
+
+    kind: str
+
+    def extract(self, raw_text: str, category: str) -> list[str]:
+        ...
+
+
+class _LocalFallbackExtractor:
+    """Crash-only extractor when no LLM is available.
+
+    Produces text fragments, not true atomic facts. Facts emitted by this
+    extractor are tagged as fallback and receive a lower initial trust score.
+    """
+
+    kind: str = "fallback"
+
+    def __init__(self, min_length: int = 20) -> None:
+        self.min_length = min_length
+
+    def extract(self, raw_text: str, category: str) -> list[str]:
+        raw_text = raw_text.strip()
+        if not raw_text:
+            return []
+        # Split on sentence boundaries; this is intentionally coarse.
+        sentences = re.split(r"(?<=[.!?])\s+", raw_text)
+        seen: set[str] = set()
+        facts: list[str] = []
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if len(sentence) < self.min_length:
+                continue
+            if sentence in seen:
+                continue
+            seen.add(sentence)
+            facts.append(sentence)
+        return facts
+
+
+class _LLMExtractor:
+    """LLM-based atomic-fact extractor.
+
+    The actual API call is injected via ``model_call`` so the core package
+    does not depend on any SDK. If the call fails, an empty list is returned
+    and the caller is expected to leave an orphan document for retry.
+    """
+
+    kind: str = "llm"
+
+    def __init__(self, model_call: Callable[[str], str]) -> None:
+        self.model_call = model_call
+
+    def extract(self, raw_text: str, category: str) -> list[str]:
+        prompt = self._build_prompt(raw_text, category)
+        try:
+            response = self.model_call(prompt)
+        except Exception:
+            return []
+        return self._parse_response(response)
+
+    def _build_prompt(self, raw_text: str, category: str) -> str:
+        return (
+            "Extract atomic facts from the following text. One fact per line. "
+            "Each fact must be self-contained and concise. Do not use bullets, "
+            "numbers, or markdown.\n\n"
+            f"Category: {category}\n\n"
+            f"---\n{raw_text}\n---\n\n"
+            "Atomic facts:"
+        )
+
+    def _parse_response(self, response: str) -> list[str]:
+        facts: list[str] = []
+        seen: set[str] = set()
+        for line in response.splitlines():
+            line = line.strip().strip("-\u2022*•").strip()
+            if len(line) < 12:
+                continue
+            if line in seen:
+                continue
+            seen.add(line)
+            facts.append(line)
+        return facts
+
+
+# ------------------------------------------------------------------------------
+# Migration runner
+# ------------------------------------------------------------------------------
 
 
 def _run_migrations(conn: sqlite3.Connection, db_path: Path) -> None:
@@ -230,6 +367,7 @@ _HELPFUL_DELTA   =  0.05
 _UNHELPFUL_DELTA = -0.10
 _TRUST_MIN       =  0.0
 _TRUST_MAX       =  1.0
+_FALLBACK_TRUST  =  0.25  # trust score for fallback-extracted facts
 
 # Entity extraction patterns
 _RE_CAPITALIZED  = re.compile(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b')
@@ -465,15 +603,23 @@ class MemoryStore:
             return best_id
         return None
 
-    def _merge_into(self, existing_id: int, content: str, tags: str) -> int:
+    def _merge_into(
+        self,
+        existing_id: int,
+        content: str,
+        tags: str,
+        source_doc_id: int | None = None,
+    ) -> int:
         """Merge a newly seen fact into an existing one.
 
         Returns the existing fact_id. Content may be replaced if the new
         wording is more specific; metadata (tags, trust, retrieval_count) is
-        always merged.
+        always merged. The source document link is kept if already set,
+        otherwise the new one is applied.
         """
         row = self._conn.execute(
-            "SELECT fact_id, content, tags, trust_score, category FROM facts WHERE fact_id = ?",
+            "SELECT fact_id, content, tags, trust_score, category, source_doc_id "
+            "FROM facts WHERE fact_id = ?",
             (existing_id,),
         ).fetchone()
         if row is None:
@@ -483,6 +629,10 @@ class MemoryStore:
         old_tags: str = row["tags"] or ""
         old_trust: float = row["trust_score"]
         category: str = row["category"]
+        old_source_doc_id: int | None = row["source_doc_id"]
+
+        # Keep an existing source link; otherwise adopt the new one.
+        merged_source_doc_id = old_source_doc_id if old_source_doc_id is not None else source_doc_id
 
         # Entity count for the existing fact (new content entities extracted below).
         old_entity_count = self._conn.execute(
@@ -510,11 +660,12 @@ class MemoryStore:
                     SET content = ?,
                         tags = ?,
                         trust_score = ?,
+                        source_doc_id = ?,
                         retrieval_count = retrieval_count + 1,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE fact_id = ?
                     """,
-                    (content, merged_tags, new_trust, existing_id),
+                    (content, merged_tags, new_trust, merged_source_doc_id, existing_id),
                 )
                 self._conn.commit()
                 # Re-extract entities and recompute HRR for the new wording.
@@ -538,11 +689,12 @@ class MemoryStore:
             UPDATE facts
             SET tags = ?,
                 trust_score = ?,
+                source_doc_id = ?,
                 retrieval_count = retrieval_count + 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE fact_id = ?
             """,
-            (merged_tags, new_trust, existing_id),
+            (merged_tags, new_trust, merged_source_doc_id, existing_id),
         )
         self._conn.commit()
         return existing_id
@@ -556,6 +708,8 @@ class MemoryStore:
         content: str,
         category: str = "general",
         tags: str = "",
+        source_doc_id: int | None = None,
+        trust: float | None = None,
     ) -> int:
         """Insert a fact and return its fact_id.
 
@@ -568,19 +722,21 @@ class MemoryStore:
             if not content:
                 raise ValueError("content must not be empty")
 
+            initial_trust = _clamp_trust(trust) if trust is not None else self.default_trust
+
             # First line of defence: lexical near-duplicate detection.
             dup_id = self._find_near_duplicate(content, category)
             if dup_id is not None:
-                return self._merge_into(dup_id, content, tags)
+                return self._merge_into(dup_id, content, tags, source_doc_id)
 
             # Exact duplicate fallback (UNIQUE constraint).
             try:
                 cur = self._conn.execute(
                     """
-                    INSERT INTO facts (content, category, tags, trust_score)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO facts (content, category, tags, trust_score, source_doc_id)
+                    VALUES (?, ?, ?, ?, ?)
                     """,
-                    (content, category, tags, self.default_trust),
+                    (content, category, tags, initial_trust, source_doc_id),
                 )
                 self._conn.commit()
                 fact_id: int = cur.lastrowid  # type: ignore[assignment]
@@ -601,6 +757,82 @@ class MemoryStore:
             self._rebuild_bank(category)
 
             return fact_id
+
+    def retain_document(
+        self,
+        raw_text: str,
+        source: str = "",
+        category: str = "general",
+        extractor: FactExtractor | None = None,
+    ) -> dict:
+        """Store a raw document and extract atomic facts from it.
+
+        The document is always persisted first (deduplicated by SHA256 of the
+        raw text). Extraction is a separate success/failure unit: if the
+        extractor returns nothing, the document remains as an orphan row and
+        can be re-extracted later.
+
+        Returns a dict with ``doc_id``, ``facts_added``, ``extractor_kind``,
+        and ``fact_ids``.
+        """
+        if extractor is None:
+            extractor = _LocalFallbackExtractor()
+
+        raw_text = raw_text.strip()
+        if not raw_text:
+            raise ValueError("raw_text must not be empty")
+
+        text_hash = _text_hash(raw_text)
+
+        with self._lock:
+            # Deduplicate by hash: repeated retains of the same text return the
+            # same doc_id without creating a new row.
+            self._conn.execute(
+                """
+                INSERT OR IGNORE INTO documents (raw_text, text_hash, source)
+                VALUES (?, ?, ?)
+                """,
+                (raw_text, text_hash, source),
+            )
+            self._conn.commit()
+
+            row = self._conn.execute(
+                "SELECT doc_id FROM documents WHERE text_hash = ?",
+                (text_hash,),
+            ).fetchone()
+            assert row is not None
+            doc_id: int = row["doc_id"]
+
+        facts = extractor.extract(raw_text, category)
+
+        fact_ids: list[int] = []
+        is_fallback = extractor.kind == "fallback"
+        fact_trust = _FALLBACK_TRUST if is_fallback else None
+
+        for fact in facts:
+            fact = fact.strip()
+            if not fact:
+                continue
+            try:
+                fact_id = self.add_fact(
+                    fact,
+                    category=category,
+                    source_doc_id=doc_id,
+                    trust=fact_trust,
+                )
+                fact_ids.append(fact_id)
+            except Exception:
+                # A single bad fact should not kill the whole batch.
+                continue
+
+        status = "document_stored_no_facts" if not fact_ids else "ok"
+        return {
+            "doc_id": doc_id,
+            "facts_added": len(fact_ids),
+            "extractor_kind": extractor.kind,
+            "fact_ids": fact_ids,
+            "status": status,
+        }
 
     def search_facts(
         self,

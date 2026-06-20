@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tightened default entity normalization thresholds (edit 0.85 / token 0.9) to further reduce false merges while still catching spacing/punctuation variants.
 - Schema migration framework with `schema_version` table, automatic baseline detection for legacy databases, and pre-migration `.db.bak.v{n}` backups (WAL checkpoint before copy; foreign keys disabled during migrations and re-enabled/check afterwards).
 - Migration v2: added `documents` table and nullable `facts.source_doc_id` foreign key (ON DELETE SET NULL) for storing source documents alongside extracted facts.
+- Migration v3: added `documents.text_hash` with UNIQUE index for raw-text deduplication.
+- `MemoryStore.retain_document(raw_text, source, category, extractor)`: stores the original article, deduplicates by SHA256 hash, and extracts atomic facts via a pluggable extractor.
+- `FactExtractor` protocol with `_LocalFallbackExtractor` (sentence split, marked as fallback) and `_LLMExtractor` (injected `model_call`, no SDK dependency in core).
+- `fact_store(action='retain')` tool for retaining raw documents from the agent tool surface.
 - `fact_store` tool `normalize` action to trigger entity normalization.
 - Write-time near-duplicate detection in `add_fact` using FTS5 coarse retrieval + Jaccard token overlap; merges wording variants before INSERT.
 - `near_duplicate_threshold` plugin config option (default `0.8`) to tune write-time dedup sensitivity.
