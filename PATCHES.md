@@ -170,8 +170,8 @@ if sig_a or sig_b:
 
 **后续修复（同 commit）**
 - `_SCHEMA` 改为最新完整结构，`documents` 表和 `facts.source_doc_id` 直接写进 `_SCHEMA`；空库初始化后即为 v2，不需要跑 migration 也不需要 backup。
-- 基线探测从最新版本往回匹配：先查 `source_doc_id`+`documents`，再查 `hrr_vector`，最后 v0。
-- `_run_migrations` 显式管理 FK pragma：migration 期间 `PRAGMA foreign_keys = OFF`，结束后开启并执行 `PRAGMA foreign_key_check`；有 violations 直接抛异常。
+- 基线探测从最新版本往回匹配，且**用 AND**：必须 `source_doc_id` 列和 `documents` 表同时存在才算 v2；任一缺失就退到更低版本让 migration 幂等补齐。
+- `_run_migrations` 显式管理 FK pragma：切换 pragma 前后先 `conn.commit()` 确保不在事务中（SQLite 在事务里改 FK pragma 是 no-op）；migration 期间 `PRAGMA foreign_keys = OFF`，结束后开启并执行 `PRAGMA foreign_key_check`；有 violations 直接抛异常。
 - backup 前执行 `PRAGMA wal_checkpoint(FULL)`，避免 WAL 模式下 `.db` 主文件落后于 WAL 导致备份不完整。
 
 **遗留尾巴**

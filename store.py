@@ -181,10 +181,13 @@ def _run_migrations(conn: sqlite3.Connection, db_path: Path) -> None:
 
     Foreign keys are disabled during migrations so that ALTER/CREATE statements
     are not blocked by constraints, then re-enabled and checked afterwards.
+    Pragma changes must happen outside of any transaction to take effect.
     """
-    # SQLite foreign keys are disabled by default; remember the current state.
-    fk_state = conn.execute("PRAGMA foreign_keys").fetchone()[0]
+    # SQLite: PRAGMA foreign_keys has no effect inside a transaction. Commit
+    # first, then disable FK enforcement for the migration work.
+    conn.commit()
     conn.execute("PRAGMA foreign_keys = OFF")
+    conn.commit()
 
     try:
         current = _get_schema_version(conn)
@@ -212,7 +215,10 @@ def _run_migrations(conn: sqlite3.Connection, db_path: Path) -> None:
             conn.commit()
     finally:
         # Re-enable foreign keys and verify consistency before returning.
+        # Again, ensure no active transaction when toggling the pragma.
+        conn.commit()
         conn.execute("PRAGMA foreign_keys = ON")
+        conn.commit()
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise sqlite3.IntegrityError(

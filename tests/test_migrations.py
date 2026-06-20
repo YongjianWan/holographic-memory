@@ -160,6 +160,53 @@ class TestMigrations:
             store.close()
             Path(db_path).unlink(missing_ok=True)
 
+    def test_partial_v2_state_is_detected_as_lower_version(self) -> None:
+        """Baseline detection uses AND: documents table alone is not v2."""
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        conn = sqlite3.connect(db_path)
+        conn.executescript(
+            """
+            CREATE TABLE facts (
+                fact_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                content         TEXT NOT NULL UNIQUE,
+                category        TEXT DEFAULT 'general',
+                tags            TEXT DEFAULT '',
+                trust_score     REAL DEFAULT 0.5,
+                retrieval_count INTEGER DEFAULT 0,
+                helpful_count   INTEGER DEFAULT 0,
+                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                hrr_vector      BLOB
+            );
+            CREATE TABLE documents (
+                doc_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                raw_text    TEXT NOT NULL,
+                source      TEXT DEFAULT '',
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+        )
+        conn.close()
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            row = store._conn.execute(
+                "SELECT version FROM schema_version"
+            ).fetchone()
+            assert int(row["version"]) == 2
+
+            columns = {
+                r[1]
+                for r in store._conn.execute("PRAGMA table_info(facts)").fetchall()
+            }
+            assert "source_doc_id" in columns
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
     def test_backup_created_before_migration(self) -> None:
         """A legacy DB with data triggers a backup before schema changes."""
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
