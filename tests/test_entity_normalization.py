@@ -79,6 +79,34 @@ class TestEntityNormalization:
         rows = store._conn.execute("SELECT COUNT(*) AS c FROM entities").fetchone()
         assert rows["c"] == 2
 
+    def test_conservative_threshold_blocks_suffix_variants(self, store: MemoryStore) -> None:
+        # "K2.7" and "K2.7-instruct" share a numeric signature but are not
+        # simple writing variants; the conservative token/edit threshold should
+        # leave them separate by default.
+        store.add_fact('"K2.7" is the base model')
+        store.add_fact('"K2.7-instruct" is the tuned model')
+
+        report = store.normalize_entities()
+
+        assert report["clusters_merged"] == 0
+        assert report["entities_merged"] == 0
+
+        rows = store._conn.execute("SELECT COUNT(*) AS c FROM entities").fetchone()
+        assert rows["c"] == 2
+
+    def test_spacing_variant_still_merges(self, store: MemoryStore) -> None:
+        # Spacing differences should still be caught by conservative edit distance.
+        store.add_fact('"OpenAI" is a company')
+        store.add_fact('"Open AI" has an API')
+
+        report = store.normalize_entities()
+
+        assert report["clusters_merged"] == 1
+        assert report["entities_merged"] == 1
+
+        rows = store._conn.execute("SELECT COUNT(*) AS c FROM entities").fetchone()
+        assert rows["c"] == 1
+
     def test_idempotent_second_run(self, store: MemoryStore) -> None:
         store.add_fact('"K2.7" is the model')
         store.add_fact('I prefer "K2_7"')

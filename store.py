@@ -662,14 +662,16 @@ class MemoryStore:
 
     def normalize_entities(
         self,
-        edit_threshold: float = 0.8,
-        token_threshold: float = 0.85,
+        edit_threshold: float = 0.85,
+        token_threshold: float = 0.9,
     ) -> dict:
         """Merge fragmented entity variants into canonical entities.
 
-        Uses string edit distance and token overlap to cluster near-duplicate
-        entity names (e.g. "K2.7", "K2_7", "k2.7"). For each cluster, keeps
-        the entity with the most fact links as canonical, moves the other
+        Uses conservative string edit distance and token overlap to cluster
+        near-duplicate entity names (e.g. "K2.7", "K2_7", "k2.7"). A
+        numeric/date/version signature gate blocks hierarchical pairs such as
+        "K2" vs "K2.7" from being treated as writing variants. For each
+        cluster, keeps the most specific entity as canonical, moves the other
         names into `aliases`, repoints `fact_entities` foreign keys, and
         recomputes HRR vectors for affected facts.
 
