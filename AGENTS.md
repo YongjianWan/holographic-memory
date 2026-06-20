@@ -47,12 +47,10 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 | `probe` / `related` / `reason` / `contradict` | ✅ 已有 | `retrieval.py` |
 | RRF 三路融合（RQ） | ✅ 已实现 | `retrieval.py` |
 | entity 归一化（P1-1） | ✅ 已实现 | `store.py` |
-| 近重复检测（P0） | ❌ 未实现 | 待写入 `store.py` |
-| entity 归一化（P1-1） | ❌ 未实现 | 待写入 `store.py` |
+| 近重复检测（P0） | ✅ 已实现 | `store.py` |
 | 惰性 GC / 语义合并 / trust 衰减（P1） | ❌ 未实现 | 待写入 `__init__.py` / 新模块 |
 | 文档入口 + 存原文（§3.5） | ❌ 未实现 | 待新增 `documents` 表 |
 | `fact_edges` 图边 + CTE 多跳（P2） | ❌ 未实现 | 待新增 |
-| RRF 三路融合（RQ） | ❌ 未实现，当前是线性加权 | 待改写 `retrieval.py` |
 
 ## 4. 开发约定
 
@@ -109,11 +107,11 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 
 ## 6. 测试要求
 
-当前仓库**没有任何测试**。新增功能时必须补齐：
+新增功能时必须补齐测试：
 
-- 单元测试：RRF 公式、Jaccard 计算、entity 归一化聚类、P0 探重阈值。
+- 单元测试：RRF 公式、Jaccard 计算、entity 归一化聚类、P0 探重阈值与 merge 行为。
 - 集成测试：在临时 SQLite 文件上跑完整 `add_fact → search/probe/reason → feedback` 链路，测试结束后删除临时库。
-- 测试文件建议放在源码目录下的 `tests/` 或当前工作目录的 `tests/`；如果用 pytest，确保 `conftest.py` 把 `db_path` 指向临时文件，**不要碰真实 `memory_store.db`**。
+- 测试文件放在 `tests/`；`conftest.py` 已提供 hermes 内部模块 stub，并把 `db_path` 指向临时文件，**不要碰真实 `memory_store.db`**。
 
 ## 7. 常见坑
 

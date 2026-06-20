@@ -13,7 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Graceful fallback to FTS5 + Jaccard RRF when numpy is unavailable.
 - `MemoryStore.normalize_entities()` for merging fragmented entity variants (e.g. "K2.7" / "K2_7") into canonical entities with aliases; canonical selection prefers the most specific name (digits/punctuation/length) to avoid collapsing into vague forms.
 - `fact_store` tool `normalize` action to trigger entity normalization.
-- Unit tests for RRF search and entity normalization under `tests/`.
+- Write-time near-duplicate detection in `add_fact` using FTS5 coarse retrieval + Jaccard token overlap; merges wording variants before INSERT.
+- `near_duplicate_threshold` plugin config option (default `0.8`) to tune write-time dedup sensitivity.
+- Local content specificity scoring when merging duplicates: prefers content with more linked entities and numeric/date/version details.
+- Unit tests for RRF search, entity normalization, and write-time dedup under `tests/`.
 - `tests/conftest.py` with minimal stubs for hermes internal modules so tests can run standalone.
 - `AGENTS.md`, `PATCHES.md`, and scaffold files (`TECH_DEBT.md`, `SESSION.md`, `SOUL.md`) documenting architecture, decisions, and debt.
 

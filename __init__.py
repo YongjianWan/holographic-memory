@@ -13,6 +13,7 @@ Config in $HERMES_HOME/config.yaml (profile-scoped):
       default_trust: 0.5
       min_trust_threshold: 0.3
       temporal_decay_half_life: 0
+      near_duplicate_threshold: 0.8          # Jaccard threshold for write-time dedup
 """
 
 from __future__ import annotations
@@ -154,6 +155,7 @@ class HolographicMemoryProvider(MemoryProvider):
             {"key": "auto_extract", "description": "Auto-extract facts at session end", "default": "false", "choices": ["true", "false"]},
             {"key": "default_trust", "description": "Default trust score for new facts", "default": "0.5"},
             {"key": "hrr_dim", "description": "HRR vector dimensions", "default": "1024"},
+            {"key": "near_duplicate_threshold", "description": "Jaccard threshold for merging near-duplicate facts on write", "default": "0.8"},
         ]
 
     def initialize(self, session_id: str, **kwargs) -> None:
@@ -170,8 +172,14 @@ class HolographicMemoryProvider(MemoryProvider):
         default_trust = float(self._config.get("default_trust", 0.5))
         hrr_dim = int(self._config.get("hrr_dim", 1024))
         temporal_decay = int(self._config.get("temporal_decay_half_life", 0))
+        near_duplicate_threshold = float(self._config.get("near_duplicate_threshold", 0.8))
 
-        self._store = MemoryStore(db_path=db_path, default_trust=default_trust, hrr_dim=hrr_dim)
+        self._store = MemoryStore(
+            db_path=db_path,
+            default_trust=default_trust,
+            hrr_dim=hrr_dim,
+            near_duplicate_threshold=near_duplicate_threshold,
+        )
         self._retriever = FactRetriever(
             store=self._store,
             temporal_decay_half_life=temporal_decay,

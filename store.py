@@ -4,6 +4,7 @@ Single-user Hermes memory store plugin.
 """
 
 import difflib
+import math
 import re
 import sqlite3
 import threading
@@ -91,9 +92,49 @@ _RE_AKA          = re.compile(
     re.IGNORECASE,
 )
 
+# Dates, versions, and bare digit sequences — all count toward content specificity.
+_RE_NUMERIC_DETAIL = re.compile(
+    r'\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}|\d+\.\d+|\d+',
+    re.IGNORECASE,
+)
+
 
 def _clamp_trust(value: float) -> float:
     return max(_TRUST_MIN, min(_TRUST_MAX, value))
+
+
+def _tokenize(text: str) -> set[str]:
+    """Simple whitespace tokenization with lowercasing and punctuation stripping.
+
+    Mirrors the tokenizer used by retrieval.py so that write-time Jaccard
+    and read-time Jaccard operate on the same token sets.
+    """
+    if not text:
+        return set()
+    tokens = set()
+    for word in text.lower().split():
+        cleaned = word.strip(".,;:!?\"'()[]{}#@<>")
+        if cleaned:
+            tokens.add(cleaned)
+    return tokens
+
+
+def _numeric_hit_count(text: str) -> int:
+    """Count distinct numeric/date/version tokens in text."""
+    return len(set(_RE_NUMERIC_DETAIL.findall(text)))
+
+
+def _content_specificity(content: str, entity_count: int) -> float:
+    """Higher = more specific content. Used when merging near-duplicate facts.
+
+    Prefers content with linked entities and numeric details, while lightly
+    penalizing overly long prose.
+    """
+    content = content.strip()
+    if not content:
+        return 0.0
+    length = max(len(content), 10)
+    return (entity_count + _numeric_hit_count(content)) / math.log(length)
 
 
 def _split_aliases(aliases: str | None) -> list[str]:
@@ -145,6 +186,7 @@ class MemoryStore:
         db_path: "str | Path | None" = None,
         default_trust: float = 0.5,
         hrr_dim: int = 1024,
+        near_duplicate_threshold: float = 0.8,
     ) -> None:
         if db_path is None:
             from hermes_constants import get_hermes_home
@@ -152,6 +194,7 @@ class MemoryStore:
         self.db_path = Path(db_path).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.default_trust = _clamp_trust(default_trust)
+        self.near_duplicate_threshold = max(0.0, min(1.0, near_duplicate_threshold))
         self.hrr_dim = hrr_dim
         self._hrr_available = hrr._HAS_NUMPY
         self._conn: sqlite3.Connection = sqlite3.connect(
@@ -182,6 +225,154 @@ class MemoryStore:
         self._conn.commit()
 
     # ------------------------------------------------------------------
+    # Near-duplicate detection / merge
+    # ------------------------------------------------------------------
+
+    def _find_near_duplicate(
+        self,
+        content: str,
+        category: str,
+        threshold: float | None = None,
+    ) -> int | None:
+        """Find a lexically near-duplicate fact in the same category.
+
+        Uses FTS5 for coarse retrieval and Jaccard token overlap for the
+        final decision. Does not update retrieval_count and ignores trust
+        filters so that low-trust duplicates are still detected.
+        """
+        if threshold is None:
+            threshold = self.near_duplicate_threshold
+
+        query_tokens = _tokenize(content)
+        if not query_tokens:
+            return None
+
+        # Build an OR-ed FTS5 query from content tokens. Quoting each token
+        # avoids FTS5 syntax errors from punctuation/reserved words.
+        match_query = " OR ".join(f'"{tok}"' for tok in query_tokens)
+
+        try:
+            rows = self._conn.execute(
+                """
+                SELECT f.fact_id, f.content, f.tags
+                FROM facts_fts
+                JOIN facts f ON f.fact_id = facts_fts.rowid
+                WHERE facts_fts MATCH ?
+                  AND f.category = ?
+                ORDER BY facts_fts.rank
+                LIMIT 100
+                """,
+                (match_query, category),
+            ).fetchall()
+        except sqlite3.Error:
+            # Malformed FTS5 query or transient error — fall back to no match.
+            return None
+
+        if not rows:
+            return None
+
+        new_tokens = _tokenize(content)
+        best_id: int | None = None
+        best_score = 0.0
+
+        for row in rows:
+            candidate_tokens = _tokenize(row["content"]) | _tokenize(row["tags"])
+            if not candidate_tokens:
+                continue
+            intersection = len(new_tokens & candidate_tokens)
+            union = len(new_tokens | candidate_tokens)
+            score = intersection / union if union else 0.0
+            if score > best_score:
+                best_score = score
+                best_id = int(row["fact_id"])
+
+        if best_id is not None and best_score >= threshold:
+            return best_id
+        return None
+
+    def _merge_into(self, existing_id: int, content: str, tags: str) -> int:
+        """Merge a newly seen fact into an existing one.
+
+        Returns the existing fact_id. Content may be replaced if the new
+        wording is more specific; metadata (tags, trust, retrieval_count) is
+        always merged.
+        """
+        row = self._conn.execute(
+            "SELECT fact_id, content, tags, trust_score, category FROM facts WHERE fact_id = ?",
+            (existing_id,),
+        ).fetchone()
+        if row is None:
+            return existing_id
+
+        old_content: str = row["content"]
+        old_tags: str = row["tags"] or ""
+        old_trust: float = row["trust_score"]
+        category: str = row["category"]
+
+        # Entity count for the existing fact (new content entities extracted below).
+        old_entity_count = self._conn.execute(
+            "SELECT COUNT(*) FROM fact_entities WHERE fact_id = ?",
+            (existing_id,),
+        ).fetchone()[0]
+        new_entity_count = len(self._extract_entities(content))
+
+        old_score = _content_specificity(old_content, old_entity_count)
+        new_score = _content_specificity(content, new_entity_count)
+        replace_content = new_score > old_score
+
+        # Merge tags.
+        merged_tags_set = set(t.strip() for t in old_tags.split(",") if t.strip())
+        merged_tags_set.update(t.strip() for t in tags.split(",") if t.strip())
+        merged_tags = ", ".join(sorted(merged_tags_set))
+
+        new_trust = max(old_trust, self.default_trust)
+
+        if replace_content:
+            try:
+                self._conn.execute(
+                    """
+                    UPDATE facts
+                    SET content = ?,
+                        tags = ?,
+                        trust_score = ?,
+                        retrieval_count = retrieval_count + 1,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE fact_id = ?
+                    """,
+                    (content, merged_tags, new_trust, existing_id),
+                )
+                self._conn.commit()
+                # Re-extract entities and recompute HRR for the new wording.
+                self._conn.execute(
+                    "DELETE FROM fact_entities WHERE fact_id = ?",
+                    (existing_id,),
+                )
+                for name in self._extract_entities(content):
+                    entity_id = self._resolve_entity(name)
+                    self._link_fact_entity(existing_id, entity_id)
+                self._compute_hrr_vector(existing_id, content)
+                self._rebuild_bank(category)
+                return existing_id
+            except sqlite3.IntegrityError:
+                # New content collides with another row; fall through to metadata-only merge.
+                self._conn.rollback()
+
+        # Metadata-only merge (content unchanged or UNIQUE collision).
+        self._conn.execute(
+            """
+            UPDATE facts
+            SET tags = ?,
+                trust_score = ?,
+                retrieval_count = retrieval_count + 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE fact_id = ?
+            """,
+            (merged_tags, new_trust, existing_id),
+        )
+        self._conn.commit()
+        return existing_id
+
+    # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
@@ -193,15 +384,21 @@ class MemoryStore:
     ) -> int:
         """Insert a fact and return its fact_id.
 
-        Deduplicates by content (UNIQUE constraint). On duplicate, returns
-        the existing fact_id without modifying the row. Extracts entities from
-        the content and links them to the fact.
+        Checks for near-duplicates (lexical overlap) before INSERT and merges
+        into an existing fact when similarity exceeds the configured threshold.
+        Falls back to the UNIQUE constraint for exact duplicates.
         """
         with self._lock:
             content = content.strip()
             if not content:
                 raise ValueError("content must not be empty")
 
+            # First line of defence: lexical near-duplicate detection.
+            dup_id = self._find_near_duplicate(content, category)
+            if dup_id is not None:
+                return self._merge_into(dup_id, content, tags)
+
+            # Exact duplicate fallback (UNIQUE constraint).
             try:
                 cur = self._conn.execute(
                     """
