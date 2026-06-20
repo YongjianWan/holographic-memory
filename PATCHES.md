@@ -109,4 +109,38 @@ if dup_id is not None:
 
 ---
 
+## Patch 5 — entity 归一化 numeric signature 守门
+
+**问题**
+`_entity_names_match` 纯靠编辑距离 + token 重叠聚类，分不出"同一东西的写法碎裂"和"系列 vs 具体型号"这种真实层级关系。
+"K2" 和 "K2.7" 字符串很近，但一个是系列、一个是版本；错合会把"K2 系列支持长上下文"这种 fact 错误绑死到 2.7。
+
+**处置**
+✅ **已应用**。
+
+**代码位置**
+`store.py`：`_numeric_signature`、`_entity_names_match`。
+
+```python
+sig_a = _numeric_signature(name_a)
+sig_b = _numeric_signature(name_b)
+if sig_a or sig_b:
+    if sig_a != sig_b:
+        return False
+```
+
+**实现要点**
+- 从 entity name 提取日期、版本、裸数字签名。
+- 版本号把 `.` / `_` / `-` 视为等价分隔符，所以 "K2.7" / "K2_7" / "K2-7" 签名相同，仍允许合并。
+- 若两个 name 的签名不同（如 "K2" {2} vs "K2.7" {2.7}，或 "Python" {} vs "Python 3.12" {3.12}），直接拒绝合并。
+
+**理由**
+纯字符串相似度不是"是不是同一个东西"的可靠判据。数字/版本/日期是强语义信号，且提取纯本地、零 LLM、确定性，符合 entity 归一化定位。错合不可逆（fact 被搬到错误 entity），漏合只是没清干净，所以守门规则往"宁可不合"偏。
+
+**遗留尾巴**
+- 同版本号的细微差异仍可能误合（如 "GPT-4" vs "GPT-4o" 都含 4）。需要真实数据观察后再决定加不加更细规则（如后缀语义守门）。
+- 上一轮已提交 d5bf1bf 的 normalize 没有备份；诊断显示默认阈值下 "K2" 与 "K2.7" **没有**被合（token 重叠 0.5 < 0.85），所以实际损坏风险低。但无法 100% 保证其他层级对未被误合。
+
+---
+
 *Last updated: 2026-06-20*

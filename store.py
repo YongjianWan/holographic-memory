@@ -93,8 +93,10 @@ _RE_AKA          = re.compile(
 )
 
 # Dates, versions, and bare digit sequences — all count toward content specificity.
+# Version-like tokens treat '.', '_', '-' as equivalent separators so that
+# "K2.7", "K2_7", and "K2-7" share the same numeric signature.
 _RE_NUMERIC_DETAIL = re.compile(
-    r'\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}|\d+\.\d+|\d+',
+    r'\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}|(\d+(?:[._-]\d+)+)|(\d+)',
     re.IGNORECASE,
 )
 
@@ -119,9 +121,37 @@ def _tokenize(text: str) -> set[str]:
     return tokens
 
 
+def _extract_numeric_signature(text: str) -> set[str]:
+    """Extract normalized numeric/date/version markers from text.
+
+    Version-like tokens with '.', '_', or '-' separators are normalized to
+    use '.', so "K2_7" and "K2.7" produce the same signature.
+    """
+    sig: set[str] = set()
+    for m in _RE_NUMERIC_DETAIL.finditer(text):
+        if m.group(1):
+            # Version-like: normalize separators.
+            sig.add(m.group(1).replace("_", ".").replace("-", "."))
+        elif m.group(2):
+            sig.add(m.group(2))
+        else:
+            sig.add(m.group(0))
+    return sig
+
+
 def _numeric_hit_count(text: str) -> int:
     """Count distinct numeric/date/version tokens in text."""
-    return len(set(_RE_NUMERIC_DETAIL.findall(text)))
+    return len(_extract_numeric_signature(text))
+
+
+def _numeric_signature(text: str) -> frozenset[str]:
+    """Return the set of numeric/date/version markers in text.
+
+    Used as a gate in entity clustering: two names whose numeric signatures
+    differ are likely a series-vs-version or version-vs-version relationship,
+    not lexical variants of the same entity.
+    """
+    return frozenset(_extract_numeric_signature(text))
 
 
 def _content_specificity(content: str, entity_count: int) -> float:
@@ -804,9 +834,22 @@ class MemoryStore:
         edit_threshold: float,
         token_threshold: float,
     ) -> bool:
-        """Return True if two entity names are near-duplicates."""
+        """Return True if two entity names are near-duplicates.
+
+        A numeric/date/version gate runs before any merge decision: if the
+        two names carry different numeric signatures, they are treated as
+        distinct series/version entities even when their strings are similar.
+        """
         if name_a.lower() == name_b.lower():
             return True
+
+        # Numeric signature gate: "K2" vs "K2.7" or "Python" vs "Python 3.12"
+        # are hierarchical relationships, not writing variants.
+        sig_a = _numeric_signature(name_a)
+        sig_b = _numeric_signature(name_b)
+        if sig_a or sig_b:
+            if sig_a != sig_b:
+                return False
 
         a_lower = name_a.lower()
         b_lower = name_b.lower()

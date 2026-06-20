@@ -6,7 +6,7 @@
 
 ## 当前焦点
 
-已完成 P0 写入近重复探重。下一步按 `holo-改造方案.md` §8 进入 **输入侧：文档入口 + 存原文**（§3.5），或先搭 P1 GC 惰性定时器壳。
+已按用户要求回头加固 entity 归一化：加了 numeric/date/version signature 守门，防止"K2"和"K2.7"这类层级关系被误当碎裂合并。测试已补。下一步回到 `holo-改造方案.md` §8，进入 **输入侧：文档入口 + 存原文**（§3.5），或先搭 **P1 GC 惰性定时器壳**。
 
 ## 进行中
 
@@ -41,6 +41,7 @@
 - P0 写入探重只用 FTS5+Jaccard、不用 HRR：新 fact 尚无 entities，HRR 向量口径不同，且语义近重复不应占写热路径。
 - P0 探重 SQL 禁 `retrieval_count` 与 trust 过滤：避免污染 GC 信号、漏掉低分重复。
 - P0 merge 保留更 specific 的 wording：用 entity 数 + 数字/日期/版本命中数 / log(len) 本地打分，不掏 LLM。
+- entity 归一化加 numeric signature 守门：纯字符串相似度分不清"碎裂"与"层级"；数字/版本/日期信号强且零成本，签名不同直接拒绝合并，宁可漏合不错合。
 
 ---
 

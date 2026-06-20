@@ -129,14 +129,43 @@ class TestEntityNormalization:
     def test_canonical_selection_prefers_specific_name_on_forced_merge(
         self, store: MemoryStore
     ) -> None:
-        # When a vague name and a specific name are merged (here forced by a
-        # lower token threshold), specificity should override link count.
+        # When a vague name and a specific name are merged, specificity should
+        # override link count. Here "Python-Lang" is more specific (punctuation,
+        # longer) than "Python" even though it has fewer links.
         for _ in range(3):
-            store.add_fact('"K2" is mentioned often')
-        store.add_fact('"K2.7" is the specific version')
+            store.add_fact('"Python" is mentioned often')
+        store.add_fact('"Python-Lang" is the specific project')
 
-        # Lower token threshold so "K2" (tokens={k2}) and "K2.7" (tokens={k2,7}) merge.
+        # Lower token threshold so the two merge despite modest token overlap.
         store.normalize_entities(token_threshold=0.4)
 
         canonical = store._conn.execute("SELECT name FROM entities").fetchone()
-        assert canonical["name"] == "K2.7"
+        assert canonical["name"] == "Python-Lang"
+
+    def test_numeric_signature_gate_blocks_hierarchical_merge(
+        self, store: MemoryStore
+    ) -> None:
+        # "K2" (series) and "K2.7" (specific version) are a hierarchy, not a
+        # writing variant. The numeric signature gate must block them even if
+        # the string-similarity threshold is loosened.
+        store.add_fact('"K2" series supports long context')
+        store.add_fact('"K2.7" has 128k context')
+
+        report = store.normalize_entities(token_threshold=0.4)
+
+        assert report["clusters_merged"] == 0
+        assert report["entities_merged"] == 0
+        rows = store._conn.execute("SELECT COUNT(*) AS c FROM entities").fetchone()
+        assert rows["c"] == 2
+
+    def test_numeric_signature_gate_blocks_series_vs_version(
+        self, store: MemoryStore
+    ) -> None:
+        # "Python" and "Python 3.12" should not be merged.
+        store.add_fact('"Python" is a language')
+        store.add_fact('"Python 3.12" was released')
+
+        report = store.normalize_entities(token_threshold=0.4)
+
+        assert report["clusters_merged"] == 0
+        assert report["entities_merged"] == 0

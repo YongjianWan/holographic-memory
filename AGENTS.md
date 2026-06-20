@@ -79,6 +79,7 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 - P0 探重只能用 **FTS5 + Jaccard**，不要用 HRR（新 fact 还没 entities，向量口径不同）。
 - P0 探重的 SQL **不能** 更新 `retrieval_count`，也**不能**过滤低 trust。
 - **P1 必须先做 entity 归一化，再做 P2 建边**——边来自 entity，entity 碎裂则边全脏。
+- entity 归一化必须加 **numeric/date/version signature 守门**："K2" 与 "K2.7" 是层级不是碎裂，不能靠字符串相似度硬合。
 - **P2 边默认只做 `shared-entity` 无类型边**；有类型边（supports/contradicts/...）是 P2.5，必须有真实查询需求才做。
 
 ### 4.5 常驻进程红线
