@@ -125,3 +125,18 @@ class TestEntityNormalization:
 
         canonical = store._conn.execute("SELECT name FROM entities").fetchone()
         assert canonical["name"] == "Python-Lang"
+
+    def test_canonical_selection_prefers_specific_name_on_forced_merge(
+        self, store: MemoryStore
+    ) -> None:
+        # When a vague name and a specific name are merged (here forced by a
+        # lower token threshold), specificity should override link count.
+        for _ in range(3):
+            store.add_fact('"K2" is mentioned often')
+        store.add_fact('"K2.7" is the specific version')
+
+        # Lower token threshold so "K2" (tokens={k2}) and "K2.7" (tokens={k2,7}) merge.
+        store.normalize_entities(token_threshold=0.4)
+
+        canonical = store._conn.execute("SELECT name FROM entities").fetchone()
+        assert canonical["name"] == "K2.7"

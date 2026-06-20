@@ -103,6 +103,20 @@ def _split_aliases(aliases: str | None) -> list[str]:
     return [a.strip() for a in aliases.split(",") if a.strip()]
 
 
+def _entity_specificity(name: str) -> int:
+    """Score entity name specificity: higher = more specific.
+
+    Prefers names with version/digit markers and longer forms, so that
+    "K2.7" wins over "K2" even if the shorter name has more links.
+    """
+    stripped = name.strip()
+    if not stripped:
+        return 0
+    digit_count = sum(1 for c in stripped if c.isdigit())
+    punct_count = sum(1 for c in stripped if not c.isalnum() and not c.isspace())
+    return digit_count * 2 + punct_count + len(stripped)
+
+
 class _UnionFind:
     """Simple union-find for entity clustering."""
 
@@ -496,10 +510,15 @@ class MemoryStore:
             entities_merged = 0
 
             for root, members in merge_clusters.items():
-                # Sort members to choose canonical: most fact links, then earliest.
+                # Sort members to choose canonical:
+                # 1. most specific name (digits/punctuation/length)
+                # 2. most fact links
+                # 3. earliest created
+                # 4. lowest entity_id
                 sorted_members = sorted(
                     members,
                     key=lambda eid: (
+                        -_entity_specificity(entities_by_id[eid]["name"]),
                         -fact_counts.get(eid, 0),
                         entities_by_id[eid]["created_at"] or "",
                         eid,

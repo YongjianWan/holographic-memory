@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - RRF (Reciprocal Rank Fusion) based `FactRetriever.search` combining FTS5, Jaccard token overlap, and HRR vector similarity using rank positions instead of raw scores.
 - Multiplicative trust/recency boosts centered at 1.0 (±10% for trust).
 - Graceful fallback to FTS5 + Jaccard RRF when numpy is unavailable.
-- `MemoryStore.normalize_entities()` for merging fragmented entity variants (e.g. "K2.7" / "K2_7") into canonical entities with aliases.
+- `MemoryStore.normalize_entities()` for merging fragmented entity variants (e.g. "K2.7" / "K2_7") into canonical entities with aliases; canonical selection prefers the most specific name (digits/punctuation/length) to avoid collapsing into vague forms.
 - `fact_store` tool `normalize` action to trigger entity normalization.
 - Unit tests for RRF search and entity normalization under `tests/`.
 - `tests/conftest.py` with minimal stubs for hermes internal modules so tests can run standalone.
