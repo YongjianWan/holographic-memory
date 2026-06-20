@@ -184,7 +184,8 @@ def _run_migrations(conn: sqlite3.Connection, db_path: Path) -> None:
     Pragma changes must happen outside of any transaction to take effect.
     """
     # SQLite: PRAGMA foreign_keys has no effect inside a transaction. Commit
-    # first, then disable FK enforcement for the migration work.
+    # first to guarantee we are outside any transaction, then disable FK
+    # enforcement for the migration work.
     conn.commit()
     conn.execute("PRAGMA foreign_keys = OFF")
     conn.commit()
@@ -198,24 +199,23 @@ def _run_migrations(conn: sqlite3.Connection, db_path: Path) -> None:
             conn.commit()
 
         target = len(_MIGRATIONS)
-        if current >= target:
-            return
+        if current < target:
+            # Backup once before applying any new migrations. In WAL mode the
+            # main .db file may lag the WAL, so checkpoint first to ensure the
+            # backup is complete. Do not overwrite an existing backup.
+            backup_path = Path(f"{db_path}.bak.v{current}")
+            if not backup_path.exists():
+                conn.execute("PRAGMA wal_checkpoint(FULL)")
+                shutil.copy2(db_path, backup_path)
 
-        # Backup once before applying any new migrations. In WAL mode the main
-        # .db file may lag the WAL, so checkpoint first to ensure the backup is
-        # complete. Do not overwrite an existing backup.
-        backup_path = Path(f"{db_path}.bak.v{current}")
-        if not backup_path.exists():
-            conn.execute("PRAGMA wal_checkpoint(FULL)")
-            shutil.copy2(db_path, backup_path)
-
-        for version in range(current + 1, target + 1):
-            _MIGRATIONS[version - 1](conn)
-            _set_schema_version(conn, version)
-            conn.commit()
+            for version in range(current + 1, target + 1):
+                _MIGRATIONS[version - 1](conn)
+                _set_schema_version(conn, version)
+                conn.commit()
     finally:
-        # Re-enable foreign keys and verify consistency before returning.
-        # Again, ensure no active transaction when toggling the pragma.
+        # Re-enable foreign keys on every exit path (including the common
+        # "already up-to-date" case). Ensure no active transaction when
+        # toggling the pragma.
         conn.commit()
         conn.execute("PRAGMA foreign_keys = ON")
         conn.commit()

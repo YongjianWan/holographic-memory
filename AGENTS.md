@@ -70,6 +70,8 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 - `_SCHEMA` 必须始终保持为**最新完整结构**；空库初始化后即为最新版本，不需要跑 migration。
 - 每次升级前在代码里硬做备份：`PRAGMA wal_checkpoint(FULL)` 后再复制 `.db.bak.v{current}`，不覆盖已有备份。
 - migration 期间 `PRAGMA foreign_keys = OFF`，结束后开启并执行 `PRAGMA foreign_key_check`；有 violations 必须抛异常，不能留下脏状态。
+- **FK pragma 管理禁止在 `try` 块内 `return` 早退**：所有退出路径（已最新、升级完成、异常）都必须经过同一个 `finally`；`finally` 里无条件 `PRAGMA foreign_keys = ON`，不要“保存-恢复”原状态（SQLite 默认 OFF，恢复等于没开）。
+- 切换 FK pragma 前必须 `conn.commit()` 确保无活动事务（SQLite 在事务里改 FK pragma 是 no-op）。
 - 每个 migration 函数必须内部幂等（`IF NOT EXISTS` / `PRAGMA table_info` 自检）。
 - 任何会改表结构的操作，文档/日志里都要提醒用户先备份 `.db`。
 

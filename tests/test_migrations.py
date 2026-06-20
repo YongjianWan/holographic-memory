@@ -267,3 +267,33 @@ class TestMigrations:
         finally:
             store.close()
             Path(db_path).unlink(missing_ok=True)
+
+    def test_document_delete_sets_source_doc_id_null(self) -> None:
+        """FK is ON after init: deleting a document clears linked facts' source."""
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            cur = store._conn.execute(
+                "INSERT INTO documents (raw_text) VALUES (?) RETURNING doc_id",
+                ("raw doc text",),
+            )
+            doc_id = cur.fetchone()["doc_id"]
+            store._conn.execute(
+                "INSERT INTO facts (content, source_doc_id) VALUES (?, ?)",
+                ("derived fact", doc_id),
+            )
+            store._conn.commit()
+
+            store._conn.execute("DELETE FROM documents WHERE doc_id = ?", (doc_id,))
+            store._conn.commit()
+
+            row = store._conn.execute(
+                "SELECT source_doc_id FROM facts WHERE content = ?",
+                ("derived fact",),
+            ).fetchone()
+            assert row["source_doc_id"] is None
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)

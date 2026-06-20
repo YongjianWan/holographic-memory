@@ -174,6 +174,12 @@ if sig_a or sig_b:
 - `_run_migrations` 显式管理 FK pragma：切换 pragma 前后先 `conn.commit()` 确保不在事务中（SQLite 在事务里改 FK pragma 是 no-op）；migration 期间 `PRAGMA foreign_keys = OFF`，结束后开启并执行 `PRAGMA foreign_key_check`；有 violations 直接抛异常。
 - backup 前执行 `PRAGMA wal_checkpoint(FULL)`，避免 WAL 模式下 `.db` 主文件落后于 WAL 导致备份不完整。
 
+**后续修复（第二轮 commit）**
+- **删掉 try 块里的 `return`**：原实现用 `if current >= target: return` 早退，虽然 Python 的 `finally` 仍然会执行，但把重开 FK 的逻辑和迁移体混在一起，极容易在后续改动中被 copy-paste 破坏。改为 `if current < target:` 条件块，让 `finally` 成为唯一出口，早退路径也明确经过 `PRAGMA foreign_keys = ON`。
+- **无条件在 finally 里 `PRAGMA foreign_keys = ON`**：不再尝试“保存并恢复原状态”（原 `fk_state` 会读到 SQLite 默认 OFF 并恢复成 OFF，等于没开）。这个库要求 FK 常驻 ON，`ON DELETE SET NULL` 才能生效。
+- **在 OFF 前和 ON 前各补一次 `conn.commit()`**：把“pragma 必须不在事务中”从推理变成保证，即使上游 `_init_db` 未来调整 executescript/事务行为也不会踩 no-op。
+- **新增 `test_document_delete_cascades_to_source_doc_id`**：直接删 document 并断言 `facts.source_doc_id` 变成 NULL，等价于验证 FK 退出时是 ON。之前的测试只看 schema，抓不到 FK 被留在 OFF。
+
 **遗留尾巴**
 - 当前基线探测只认 `hrr_vector`/`documents`/`source_doc_id`。如果未来出现更多 pre-migration 中间状态，需要扩展 `_detect_schema_version`。
 - `retain_document` 的 LLM 提炼逻辑本次未实现，留到下一步。

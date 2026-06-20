@@ -33,4 +33,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `__init__.py` no longer reads `hrr_weight` from plugin config.
 
 ### Fixed
+- Migration framework now guarantees `PRAGMA foreign_keys = ON` on every `_init_db` path by removing the early `return` inside the migration `try` block and using a guarded `if current < target:` body; added `test_document_delete_cascades_to_source_doc_id` to verify `ON DELETE SET NULL` is actually enforced.
 - Eliminated unstable raw-score weighting of incomparable signals (FTS5 rank, Jaccard ratio, HRR cosine).
