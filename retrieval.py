@@ -7,9 +7,12 @@ similarity by ranking position rather than raw score, avoiding the
 
 from __future__ import annotations
 
+import logging
 import math
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .store import MemoryStore
@@ -107,6 +110,38 @@ class FactRetriever:
 
         scored.sort(key=lambda x: x["score"], reverse=True)
         results = scored[:limit]
+
+        # RRF A/B testing instrumentation
+        if hrr_ranking and logger.isEnabledFor(logging.DEBUG):
+            scored_2way = []
+            for fact in rows:
+                fid = fact["fact_id"]
+                rrf_score_2 = 0.0
+                if fid in fts_ranking:
+                    rrf_score_2 += 1.0 / (_RRF_K + fts_ranking[fid])
+                if fid in jaccard_ranking:
+                    rrf_score_2 += 1.0 / (_RRF_K + jaccard_ranking[fid])
+
+                trust_boost = 1.0 + 0.2 * (fact["trust_score"] - 0.5)
+                recency_boost = 1.0
+                if self.half_life > 0:
+                    recency_boost = self._temporal_decay(
+                        fact.get("updated_at") or fact.get("created_at")
+                    )
+
+                scored_2way.append({
+                    "fact_id": fid,
+                    "score": rrf_score_2 * trust_boost * recency_boost
+                })
+            scored_2way.sort(key=lambda x: x["score"], reverse=True)
+            top_3way = [f["fact_id"] for f in results]
+            top_2way = [f["fact_id"] for f in scored_2way[:limit]]
+            intersection = set(top_3way) & set(top_2way)
+            overlap = len(intersection) / max(len(top_3way), 1)
+            logger.debug(
+                "RRF A/B Test for query='%s': 3-way top %s, 2-way top %s, overlap=%.2f",
+                query, top_3way, top_2way, overlap
+            )
 
         # Strip raw HRR bytes — callers expect JSON-serializable dicts.
         for fact in results:
