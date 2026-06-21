@@ -6,6 +6,7 @@ Single-user Hermes memory store plugin.
 import difflib
 import hashlib
 import logging
+import json
 import math
 import re
 import shutil
@@ -444,6 +445,80 @@ class _LLMExtractor:
             seen.add(line)
             facts.append(line)
         return facts
+
+
+class _LLMConsolidator:
+    """LLM-based fact consolidator.
+
+    The actual API call is injected via ``model_call`` so the core package
+    does not depend on any SDK.
+    """
+
+    def __init__(self, model_call: Callable[[str], str]) -> None:
+        self.model_call = model_call
+
+    def consolidate(self, facts: list[dict]) -> list[dict]:
+        if not facts:
+            return []
+        prompt = self._build_prompt(facts)
+        try:
+            response = self.model_call(prompt)
+        except Exception:
+            return []
+        return self._parse_response(response)
+
+    def _build_prompt(self, facts: list[dict]) -> str:
+        facts_str = json.dumps(
+            [{"fact_id": f["fact_id"], "content": f["content"]} for f in facts],
+            ensure_ascii=False,
+            indent=2,
+        )
+        return (
+            "You are a semantic memory consolidator. Analyze the related facts below and determine if any of them are duplicate claims or part of a timeline sequence that should be merged/converged.\n\n"
+            "Here is the list of facts:\n"
+            f"{facts_str}\n\n"
+            "Instructions:\n"
+            "1. Group facts that discuss the same specific event, relationship, preference, or state.\n"
+            "2. If facts represent duplicate or slightly different wording of the same claim (e.g. 'A works on project B' and 'A is developing project B'), merge them.\n"
+            "3. If facts represent timeline updates of the same state (e.g. 'A is senior dev' and 'A promoted to principal dev'), converge them into a single consolidated fact representing the latest state with history (e.g. 'A is principal dev (previously senior dev)').\n"
+            "4. Keep unrelated facts completely separate. Do not force-merge facts that happen to share an entity but claim different things.\n"
+            "5. For merged/converged facts, write a self-contained content sentence. Aim for 5-25 words. Never exceed 60 words.\n"
+            "6. Output your decision as a single valid JSON object. No conversational markdown, no explanation.\n\n"
+            "Response Schema:\n"
+            "{\n"
+            '  "consolidations": [\n'
+            "    {\n"
+            '      "input_ids": [12, 15],\n'
+            '      "consolidated_content": "Consolidated fact content..."\n'
+            "    }\n"
+            "  ]\n"
+            "}\n\n"
+            "Example JSON output:\n"
+            "{\n"
+            '  "consolidations": [\n'
+            '    {"input_ids": [12, 15], "consolidated_content": "Mia is a Principal Dev (previously Senior Dev)"}\n'
+            "  ]\n"
+            "}"
+        )
+
+    def _parse_response(self, response: str) -> list[dict]:
+        response = response.strip()
+        if response.startswith("```json"):
+            response = response[7:]
+        if response.endswith("```"):
+            response = response[:-3]
+        response = response.strip()
+
+        try:
+            start = response.find("{")
+            end = response.rfind("}")
+            if start != -1 and end != -1:
+                json_str = response[start : end + 1]
+                data = json.loads(json_str)
+                return data.get("consolidations", [])
+        except Exception:
+            pass
+        return []
 
 
 # ------------------------------------------------------------------------------
@@ -1502,6 +1577,177 @@ class MemoryStore:
                 "facts_reindexed": len(affected_fact_ids),
                 "categories_rebuilt": sorted(categories_to_rebuild),
             }
+
+    def consolidate_facts(
+        self,
+        model_call: Callable[[str], str],
+        category: str | None = None,
+        generic_threshold: int = 15,
+        max_cluster_size: int = 6,
+    ) -> dict:
+        """Run semantic consolidation using LLM on clusters of facts with shared entities."""
+        clusters = self._find_consolidation_candidates(
+            category=category,
+            generic_threshold=generic_threshold,
+            max_cluster_size=max_cluster_size,
+        )
+        if not clusters:
+            return {
+                "clusters_processed": 0,
+                "facts_processed": 0,
+                "facts_merged": 0,
+                "facts_created": 0,
+                "status": "no_candidates",
+            }
+
+        consolidator = _LLMConsolidator(model_call)
+        facts_processed = sum(len(c) for c in clusters)
+        facts_merged = 0
+        facts_created = 0
+        affected_categories: set[str] = set()
+
+        for cluster in clusters:
+            consolidations = consolidator.consolidate(cluster)
+            if not consolidations:
+                continue
+
+            with self._lock:
+                # Run each cluster consolidation in a transaction
+                try:
+                    for item in consolidations:
+                        input_ids: list[int] = item.get("input_ids", [])
+                        consolidated_content: str = item.get("consolidated_content", "").strip()
+
+                        if not input_ids or not consolidated_content:
+                            continue
+
+                        # Load input facts details from database to verify and merge metadata
+                        placeholders = ",".join("?" * len(input_ids))
+                        rows = self._conn.execute(
+                            f"SELECT fact_id, trust_score, retrieval_count, helpful_count, category, tags, source_doc_id "
+                            f"FROM facts WHERE fact_id IN ({placeholders})",
+                            input_ids,
+                        ).fetchall()
+
+                        if not rows:
+                            continue
+
+                        # Check category and build merged metadata
+                        fact_category = rows[0]["category"]
+                        affected_categories.add(fact_category)
+
+                        merged_trust = max(r["trust_score"] for r in rows)
+                        merged_retrieval_count = sum(r["retrieval_count"] for r in rows)
+                        merged_helpful_count = sum(r["helpful_count"] for r in rows)
+                        
+                        # Merge tags
+                        tags_set: set[str] = set()
+                        for r in rows:
+                            if r["tags"]:
+                                tags_set.update(t.strip() for t in r["tags"].split(",") if t.strip())
+                        merged_tags = ", ".join(sorted(tags_set))
+
+                        # Source doc id
+                        merged_source_doc_id = None
+                        for r in rows:
+                            if r["source_doc_id"] is not None:
+                                merged_source_doc_id = r["source_doc_id"]
+                                break
+
+                        # Insert consolidated fact
+                        new_fact_id = None
+                        try:
+                            cur = self._conn.execute(
+                                """
+                                INSERT INTO facts (content, category, tags, trust_score, retrieval_count, helpful_count, source_doc_id)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                                """,
+                                (
+                                    consolidated_content,
+                                    fact_category,
+                                    merged_tags,
+                                    merged_trust,
+                                    merged_retrieval_count,
+                                    merged_helpful_count,
+                                    merged_source_doc_id,
+                                ),
+                            )
+                            new_fact_id = cur.lastrowid
+                            facts_created += 1
+                        except sqlite3.IntegrityError:
+                            # Consolidated content already exists, merge metadata into the existing row
+                            row = self._conn.execute(
+                                "SELECT fact_id, trust_score, retrieval_count, helpful_count, tags, source_doc_id "
+                                "FROM facts WHERE content = ?",
+                                (consolidated_content,),
+                            ).fetchone()
+                            if row:
+                                new_fact_id = row["fact_id"]
+                                updated_trust = max(row["trust_score"], merged_trust)
+                                updated_ret_count = row["retrieval_count"] + merged_retrieval_count
+                                updated_help_count = row["helpful_count"] + merged_helpful_count
+                                
+                                existing_tags = set(t.strip() for t in (row["tags"] or "").split(",") if t.strip())
+                                existing_tags.update(tags_set)
+                                updated_tags = ", ".join(sorted(existing_tags))
+                                
+                                self._conn.execute(
+                                    """
+                                    UPDATE facts
+                                    SET trust_score = ?, retrieval_count = ?, helpful_count = ?, tags = ?, source_doc_id = ?, updated_at = CURRENT_TIMESTAMP
+                                    WHERE fact_id = ?
+                                    """,
+                                    (
+                                        updated_trust,
+                                        updated_ret_count,
+                                        updated_help_count,
+                                        updated_tags,
+                                        row["source_doc_id"] or merged_source_doc_id,
+                                        new_fact_id,
+                                    ),
+                                )
+
+                        # Extract entities and link them to the new fact
+                        if new_fact_id is not None:
+                            entity_names = self._extract_entities(consolidated_content)
+                            for name in entity_names:
+                                entity_id = self._resolve_entity(name)
+                                self._link_fact_entity(new_fact_id, entity_id)
+                            # Warn and generate HRR vector
+                            self._warn_hrr_capacity(consolidated_content, entity_names)
+                            self._compute_hrr_vector(new_fact_id, consolidated_content)
+
+                        # Delete old facts and their links
+                        for old_id in input_ids:
+                            # Don't delete if the old id is actually the reused existing_id
+                            if old_id == new_fact_id:
+                                continue
+                            self._conn.execute(
+                                "DELETE FROM fact_entities WHERE fact_id = ?",
+                                (old_id,),
+                            )
+                            self._conn.execute(
+                                "DELETE FROM facts WHERE fact_id = ?",
+                                (old_id,),
+                            )
+                            facts_merged += 1
+
+                    self._conn.commit()
+                except Exception as e:
+                    self._conn.rollback()
+                    logger.error("Consolidation batch failed and was rolled back: %s", e)
+
+        # Rebuild banks for all affected categories
+        for cat in affected_categories:
+            self._rebuild_bank(cat)
+
+        return {
+            "clusters_processed": len(clusters),
+            "facts_processed": facts_processed,
+            "facts_merged": facts_merged,
+            "facts_created": facts_created,
+            "status": "ok",
+        }
 
     @staticmethod
     def _entity_names_match(
