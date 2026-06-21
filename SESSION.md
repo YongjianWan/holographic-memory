@@ -13,7 +13,8 @@
 - **entity 抽取修正**：在 `store.py` 的 `_extract_entities` 加了写时守卫：引号内候选 >20 字符或包含句中标点（，。！？；：等）视为 phrase/sentence，拒绝作为 entity。`pytest tests/` 全绿（54 passed）。在云语料上：总 entity 仅 5~6 个（中文事实几乎不带引号），修复前脏 entity 1 个（“请准备以下测试环境及资料，周二下午前完成演示”），修复后 0 个。
 - **HRR / RRF 重大发现（云语料 366 facts）**：两两 HRR 相位余弦相似度 p50≈0、p95=0.036、p99≈0.052、**max=0.089**，≥0.80 的候选对为 0。这不只是「HRR 不能用于 P1-2 语义合并」——它顺带说明 §3 RRF 里的 HRR 那一路在真实语料上几乎在输出噪声。若 HRR 给出的排名是噪声，RRF 把它按 `1/(60+rank)` 加进共识分就是掺沙子。0.089 的天花板有多少来自 HRR 本质弱、有多少来自 entity 守卫后平均每 fact 只剩 ~1 个 entity，目前分不开；但无论哪种，**结论方向一致：别再调 HRR 阈值，P1-2 走 entity 共现 + LLM**。下一步必须在全量数据上实测三路 RRF vs 两路（FTS5+Jaccard）RRF，决定 HRR 那路是降权还是踢出。
 - **domain_fact 比例修正为 56.3%**，不是之前凭直觉说的 80%+。加上 user_action 里“项目动作”那部分，往高了算也到不了 80。go/no-go 结论（去掉纯人型 mention 后库仍成立）不变，但余量比直觉薄，需要记着。
-- **方法论红线**：key 失效时拿 fallback 语料（61 facts）标 HRR 阈值、entity 质量、分类分布是**假基准**——这已经是第三次证明 fallback 不能当基准。AGENTS.md 已加红线：fallback 只能验证脚本能跑通，不能出任何数值结论；key 失效就等。
+- **方法论红线**：key 失效时拿 fallback 语料（61 facts）标 HRR 阈值、entity 质量、分类分布是**假基准**——这已经是第三次证明 fallback 不能当基准。AGENTS.md 已加红线：fallback 只能验证脚本能跑通，不能出 any 数值结论；key 失效就等。
+- **中文分词与 FTS5 trigram 迁移 (v5) (Patch 8)**: 确认 `.split()` 空格切分是导致中文 Jaccard/HRR 相似度大面积失效的元凶。引入了纯 Python 零依赖的 CJK 1-3 字符滑窗切词。重建了 `facts_fts` 虚拟表，使用 `tokenize="trigram"` 保证 FTS5 在中文下不瞎。A/B 测试表明 3-way RRF vs 2-way RRF 的中位数重合度恢复至 0.80，HRR 能够贡献有意义的独立信号。
 - Q1 维持 12% 非原子率不动的结论仍有效（基于之前有效的 DeepSeek 运行）。
 - Q2 category 分不分：用户 hub 不 dominant 的结论仍有效，但 bank 容量 warning（689 facts 落在单一 `project` bank）是真实问题，后续应靠真实 category 规则拆分，而不是继续把所有文档塞进 `project`。
 

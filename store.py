@@ -188,7 +188,7 @@ CREATE INDEX IF NOT EXISTS idx_facts_category ON facts(category);
 CREATE INDEX IF NOT EXISTS idx_entities_name  ON entities(name);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS facts_fts
-    USING fts5(content, tags, content=facts, content_rowid=fact_id);
+    USING fts5(content, tags, content=facts, content_rowid=fact_id, tokenize="trigram");
 
 CREATE TRIGGER IF NOT EXISTS facts_ai AFTER INSERT ON facts BEGIN
     INSERT INTO facts_fts(rowid, content, tags)
@@ -300,11 +300,32 @@ def _migration_v4_merged_into(conn: sqlite3.Connection) -> None:
         )
 
 
+def _migration_v5_trigram_tokenizer(conn: sqlite3.Connection) -> None:
+    """Migrate facts_fts to use the trigram tokenizer for CJK support."""
+    # 1. Drop existing virtual table
+    conn.execute("DROP TABLE IF EXISTS facts_fts")
+    # 2. Recreate with trigram tokenizer
+    conn.execute(
+        """
+        CREATE VIRTUAL TABLE facts_fts
+            USING fts5(content, tags, content=facts, content_rowid=fact_id, tokenize="trigram")
+        """
+    )
+    # 3. Populate it with existing active facts
+    conn.execute(
+        """
+        INSERT INTO facts_fts(rowid, content, tags)
+        SELECT fact_id, content, tags FROM facts WHERE merged_into IS NULL
+        """
+    )
+
+
 _MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _migration_v1_ensure_hrr_vector,
     _migration_v2_documents,
     _migration_v3_document_hash,
     _migration_v4_merged_into,
+    _migration_v5_trigram_tokenizer,
 ]
 
 
@@ -341,10 +362,25 @@ def _detect_schema_version(conn: sqlite3.Connection) -> int:
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()
     }
+    
+    fts_sql_row = conn.execute("SELECT sql FROM sqlite_master WHERE name='facts_fts'").fetchone()
+    has_trigram = False
+    if fts_sql_row and fts_sql_row["sql"] and "trigram" in fts_sql_row["sql"]:
+        has_trigram = True
+
     # `_SCHEMA` creates the latest tables/columns on a fresh DB, but on a
     # legacy DB the existing `facts` table may still lack columns that the
     # migrations are responsible for adding. Match the newest version only
     # when *both* the facts columns and the documents columns are present.
+    if (
+        has_trigram
+        and "merged_into" in fact_columns
+        and "text_hash" in doc_columns
+        and "source_doc_id" in fact_columns
+        and "hrr_vector" in fact_columns
+        and "documents" in tables
+    ):
+        return 5
     if (
         "merged_into" in fact_columns
         and "text_hash" in doc_columns
@@ -636,19 +672,8 @@ def _clamp_trust(value: float) -> float:
 
 
 def _tokenize(text: str) -> set[str]:
-    """Simple whitespace tokenization with lowercasing and punctuation stripping.
-
-    Mirrors the tokenizer used by retrieval.py so that write-time Jaccard
-    and read-time Jaccard operate on the same token sets.
-    """
-    if not text:
-        return set()
-    tokens = set()
-    for word in text.lower().split():
-        cleaned = word.strip(".,;:!?\"'()[]{}#@<>")
-        if cleaned:
-            tokens.add(cleaned)
-    return tokens
+    """Segment CJK characters and alphanumeric words for Jaccard matching."""
+    return set(hrr.tokenize_text(text))
 
 
 def _extract_numeric_signature(text: str) -> set[str]:

@@ -70,12 +70,13 @@ class FactRetriever:
         # Independent rankings from each method.
         fts_ranking = self._fts_ranking(query, category, min_trust, pool)
         jaccard_ranking = self._jaccard_ranking(query, category, min_trust, pool)
+        hrr_ranking = self._hrr_ranking(query, category, min_trust, pool)
 
-        if not (fts_ranking or jaccard_ranking):
+        if not (fts_ranking or jaccard_ranking or hrr_ranking):
             return []
 
         # Union of candidate fact IDs.
-        candidate_ids = set(fts_ranking) | set(jaccard_ranking)
+        candidate_ids = set(fts_ranking) | set(jaccard_ranking) | set(hrr_ranking)
 
         # Fetch full rows for the candidate set.
         rows = self._fetch_facts(candidate_ids, category, min_trust)
@@ -91,6 +92,8 @@ class FactRetriever:
                 rrf_score += 1.0 / (_RRF_K + fts_ranking[fid])
             if fid in jaccard_ranking:
                 rrf_score += 1.0 / (_RRF_K + jaccard_ranking[fid])
+            if fid in hrr_ranking:
+                rrf_score += 1.0 / (_RRF_K + hrr_ranking[fid])
 
             # Trust boost: centered at 1.0, ±10% over [0, 1].
             trust_boost = 1.0 + 0.2 * (fact["trust_score"] - 0.5)
@@ -644,19 +647,8 @@ class FactRetriever:
 
     @staticmethod
     def _tokenize(text: str) -> set[str]:
-        """Simple whitespace tokenization with lowercasing.
-
-        Strips common punctuation. No stemming/lemmatization (Phase 1).
-        """
-        if not text:
-            return set()
-        # Split on whitespace, lowercase, strip punctuation
-        tokens = set()
-        for word in text.lower().split():
-            cleaned = word.strip(".,;:!?\"'()[]{}#@<>")
-            if cleaned:
-                tokens.add(cleaned)
-        return tokens
+        """Segment CJK characters and alphanumeric words for Jaccard matching."""
+        return set(hrr.tokenize_text(text))
 
     @staticmethod
     def _jaccard_similarity(set_a: set, set_b: set) -> float:

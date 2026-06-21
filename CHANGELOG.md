@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Migration v5: Added trigram tokenizer to the FTS5 virtual table (`facts_fts`) for native CJK/Chinese text search support.
+- Pure-Python zero-dependency CJK character segmenter (`tokenize_text` in `holographic.py`) that extracts 1-3 character sliding window n-grams from CJK text while preserving alphanumeric words.
+- Re-enabled and re-commissioned the HRR ranking leg in `FactRetriever.search` RRF fusion using the new CJK-aware tokenizer, achieving a robust 0.80 median overlap in 3-way vs 2-way RRF A/B testing on a 343-fact Chinese corpus.
 - Migration v4: added `merged_into` column in `facts` table for soft-delete/supersession of consolidated facts, keeping original facts and relations fully auditable.
 - reactivation logic in `add_fact`: automatically clears `merged_into` to reactivate a fact if the same exact content is inserted again.
 - Integration tests in `tests/test_consolidation.py` verifying that soft-deleted facts are fully hidden from all 9 query/read paths, and that reactivation works.

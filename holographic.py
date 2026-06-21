@@ -108,23 +108,66 @@ def similarity(a: "np.ndarray", b: "np.ndarray") -> float:
     return float(np.mean(np.cos(a - b)))
 
 
+def tokenize_text(text: str) -> list[str]:
+    """Segment text into English/alphanumeric words and CJK character n-grams.
+
+    Zero dependencies, pure Python.
+    """
+    if not text:
+        return []
+    text = text.lower()
+    tokens = []
+    for word in text.split():
+        cleaned = word.strip(".,;:!?\"'()[]{}#@<>")
+        if not cleaned:
+            continue
+        has_cjk = any('\u4e00' <= c <= '\u9fff' for c in cleaned)
+        if not has_cjk:
+            tokens.append(cleaned)
+        else:
+            current_cjk: list[str] = []
+            current_alnum: list[str] = []
+            def flush_cjk():
+                if current_cjk:
+                    w = "".join(current_cjk)
+                    n = len(w)
+                    for i in range(n):
+                        tokens.append(w[i])
+                        if i + 1 < n:
+                            tokens.append(w[i:i+2])
+                        if i + 2 < n:
+                            tokens.append(w[i:i+3])
+                    current_cjk.clear()
+            def flush_alnum():
+                if current_alnum:
+                    tokens.append("".join(current_alnum))
+                    current_alnum.clear()
+            for c in cleaned:
+                if '\u4e00' <= c <= '\u9fff':
+                    flush_alnum()
+                    current_cjk.append(c)
+                elif c.isalnum():
+                    flush_cjk()
+                    current_alnum.append(c)
+                else:
+                    flush_cjk()
+                    flush_alnum()
+            flush_cjk()
+            flush_alnum()
+    return tokens
+
+
 def encode_text(text: str, dim: int = 1024) -> "np.ndarray":
     """Bag-of-words: bundle of atom vectors for each token.
 
-    Tokenizes by lowercasing, splitting on whitespace, and stripping
-    leading/trailing punctuation from each token.
+    Segment text using tokenize_text (English words & CJK n-grams).
 
     Returns bundle of all token atom vectors.
     If text is empty or produces no tokens, returns encode_atom("__hrr_empty__", dim).
     """
     _require_numpy()
 
-    tokens = [
-        token.strip(".,!?;:\"'()[]{}")
-        for token in text.lower().split()
-    ]
-    tokens = [t for t in tokens if t]
-
+    tokens = tokenize_text(text)
     if not tokens:
         return encode_atom("__hrr_empty__", dim)
 
