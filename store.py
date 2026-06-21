@@ -45,7 +45,7 @@ def _content_item_count(content: str) -> int:
     """
     if _CONTENT_ITEM_ENCODING is not None:
         return len(_CONTENT_ITEM_ENCODING.encode(content))
-    return len(content.split())
+    return len(hrr.tokenize_text(content))
 
 
 _SENTENCE_END_RE = re.compile(r"([。！？.!?])")
