@@ -51,6 +51,7 @@ FACT_STORE_SCHEMA = {
         "• reason — Compositional: facts connected to MULTIPLE entities simultaneously.\n"
         "• contradict — Memory hygiene: find facts making conflicting claims.\n"
         "• normalize — Merge fragmented entity variants (e.g. 'K2.7' / 'K2_7').\n"
+        "• consolidate — Run semantic consolidation to merge duplicates and timeline updates using LLM.\n"
         "• update/remove/list — CRUD operations.\n\n"
         "IMPORTANT: Before answering questions about the user, ALWAYS probe or reason first."
     ),
@@ -59,7 +60,7 @@ FACT_STORE_SCHEMA = {
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["add", "retain", "search", "probe", "related", "reason", "contradict", "update", "remove", "list", "normalize"],
+                "enum": ["add", "retain", "search", "probe", "related", "reason", "contradict", "update", "remove", "list", "normalize", "consolidate"],
             },
             "content": {"type": "string", "description": "Fact content (required for 'add') or raw document text (required for 'retain')."},
             "query": {"type": "string", "description": "Search query (required for 'search')."},
@@ -110,6 +111,48 @@ def _load_plugin_config() -> dict:
         return cfg_get(all_config, "plugins", "hermes-memory-store", default={}) or {}
     except Exception:
         return {}
+
+
+def _resolve_model_call() -> Callable[[str], str] | None:
+    import os
+    ds_key = os.environ.get("DEEPSEEK_API_KEY")
+    if ds_key:
+        try:
+            from openai import OpenAI
+            base_url = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+            model = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash")
+            client = OpenAI(api_key=ds_key, base_url=base_url)
+            def model_call(prompt: str) -> str:
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0,
+                    stream=False,
+                )
+                return resp.choices[0].message.content or ""
+            return model_call
+        except Exception:
+            pass
+
+    oa_key = os.environ.get("OPENAI_API_KEY")
+    if oa_key:
+        try:
+            from openai import OpenAI
+            model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+            client = OpenAI(api_key=oa_key)
+            def model_call(prompt: str) -> str:
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0,
+                    stream=False,
+                )
+                return resp.choices[0].message.content or ""
+            return model_call
+        except Exception:
+            pass
+
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -283,10 +326,16 @@ class HolographicMemoryProvider(MemoryProvider):
                 return json.dumps({"fact_id": fact_id, "status": "added"})
 
             elif action == "retain":
+                model_call = _resolve_model_call()
+                extractor = None
+                if model_call:
+                    from .store import _LLMExtractor
+                    extractor = _LLMExtractor(model_call=model_call)
                 result = store.retain_document(
                     args["content"],
                     source=args.get("source", ""),
                     category=args.get("category", "general"),
+                    extractor=extractor,
                     max_chunk_tokens=self._retain_max_chunk_tokens,
                 )
                 return json.dumps(result)
@@ -359,6 +408,16 @@ class HolographicMemoryProvider(MemoryProvider):
             elif action == "normalize":
                 report = store.normalize_entities()
                 return json.dumps({"normalized": True, "report": report})
+
+            elif action == "consolidate":
+                model_call = _resolve_model_call()
+                if not model_call:
+                    return tool_error("DEEPSEEK_API_KEY or OPENAI_API_KEY not found in environment. Consolidation requires an LLM.")
+                report = store.consolidate_facts(
+                    model_call=model_call,
+                    category=args.get("category"),
+                )
+                return json.dumps({"consolidated": True, "report": report})
 
             else:
                 return tool_error(f"Unknown action: {action}")
