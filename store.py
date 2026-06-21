@@ -11,6 +11,7 @@ import re
 import shutil
 import sqlite3
 import threading
+from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
@@ -874,6 +875,107 @@ class MemoryStore:
         )
         self._conn.commit()
         return existing_id
+
+    def _find_consolidation_candidates(
+        self,
+        category: str | None = None,
+        generic_threshold: int = 15,
+        max_cluster_size: int = 6,
+    ) -> list[list[dict]]:
+        """Find clusters of facts that share entities and are candidates for consolidation.
+
+        Excludes high-frequency generic entities from generating single-entity matches
+        unless the facts share at least 2 entities total.
+        """
+        with self._lock:
+            # 1. Fetch all fact-entity associations
+            params: list = []
+            category_clause = ""
+            if category is not None:
+                category_clause = "WHERE f.category = ?"
+                params.append(category)
+
+            sql = f"""
+                SELECT fe.fact_id, fe.entity_id, f.content, f.category, f.tags, f.trust_score
+                FROM fact_entities fe
+                JOIN facts f ON fe.fact_id = f.fact_id
+                {category_clause}
+            """
+            rows = self._conn.execute(sql, params).fetchall()
+            if not rows:
+                return []
+
+            # 2. Build mapping and entity frequencies
+            fact_to_entities: dict[int, set[int]] = defaultdict(set)
+            entity_to_facts: dict[int, set[int]] = defaultdict(set)
+            fact_data: dict[int, dict] = {}
+
+            for row in rows:
+                fid = row["fact_id"]
+                eid = row["entity_id"]
+                fact_to_entities[fid].add(eid)
+                entity_to_facts[eid].add(fid)
+                if fid not in fact_data:
+                    fact_data[fid] = {
+                        "fact_id": fid,
+                        "content": row["content"],
+                        "category": row["category"],
+                        "tags": row["tags"],
+                        "trust_score": row["trust_score"],
+                    }
+
+            # Identify generic entities
+            generic_entities = {
+                eid for eid, fids in entity_to_facts.items() if len(fids) > generic_threshold
+            }
+
+            # 3. Find candidate pairs based on co-occurrence rules
+            shared_entities_count: dict[tuple[int, int], int] = defaultdict(int)
+            for eid, fids in entity_to_facts.items():
+                fids_list = sorted(fids)
+                for i in range(len(fids_list)):
+                    for j in range(i + 1, len(fids_list)):
+                        pair = (fids_list[i], fids_list[j])
+                        shared_entities_count[pair] += 1
+
+            candidate_pairs = set()
+            for (f1, f2), shared_count in shared_entities_count.items():
+                shared_ents = fact_to_entities[f1] & fact_to_entities[f2]
+                shared_non_generic = shared_ents - generic_entities
+                # Match if sharing >= 1 non-generic entity, OR sharing >= 2 generic/non-generic entities
+                if len(shared_non_generic) >= 1 or shared_count >= 2:
+                    candidate_pairs.add((f1, f2))
+
+            # 4. Group candidate pairs into connected components (BFS)
+            adj = defaultdict(list)
+            for f1, f2 in candidate_pairs:
+                adj[f1].append(f2)
+                adj[f2].append(f1)
+
+            visited = set()
+            clusters: list[list[dict]] = []
+
+            for start_node in sorted(adj.keys()):
+                if start_node not in visited:
+                    component = []
+                    queue = [start_node]
+                    visited.add(start_node)
+                    while queue:
+                        node = queue.pop(0)
+                        component.append(node)
+                        for neighbor in adj[node]:
+                            if neighbor not in visited:
+                                visited.add(neighbor)
+                                queue.append(neighbor)
+                    
+                    # Sort to make clustering output deterministic
+                    component.sort()
+                    for i in range(0, len(component), max_cluster_size):
+                        chunk = component[i:i + max_cluster_size]
+                        # Convert fact IDs to full fact dicts
+                        clusters.append([fact_data[fid] for fid in chunk])
+
+            return clusters
 
     # ------------------------------------------------------------------
     # Public API
