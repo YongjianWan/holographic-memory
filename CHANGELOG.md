@@ -8,61 +8,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Migration v5: Added trigram tokenizer to the FTS5 virtual table (`facts_fts`) for native CJK/Chinese text search support.
-- Pure-Python zero-dependency CJK character segmenter (`tokenize_text` in `holographic.py`) that extracts 1-3 character sliding window n-grams from CJK text while preserving alphanumeric words.
-- Re-enabled and re-commissioned the HRR ranking leg in `FactRetriever.search` RRF fusion using the new CJK-aware tokenizer, achieving a robust 0.80 median overlap in 3-way vs 2-way RRF A/B testing on a 343-fact Chinese corpus.
-- Migration v4: added `merged_into` column in `facts` table for soft-delete/supersession of consolidated facts, keeping original facts and relations fully auditable.
-- reactivation logic in `add_fact`: automatically clears `merged_into` to reactivate a fact if the same exact content is inserted again.
-- Integration tests in `tests/test_consolidation.py` verifying that soft-deleted facts are fully hidden from all 9 query/read paths, and that reactivation works.
 
-### Removed
-- `_auto_extract_facts` and the `on_session_end` regex extraction path: English-only `\bI prefer\b`-style patterns produced coarse non-atomic facts and were wholly ineffective for Chinese text. The `on_session_end` hook is preserved as a no-op stub for hook compatibility. Structured extraction remains available via `retain_document` + LLM.
-- `auto_extract` plugin config key (was the toggle for the removed regex extraction).
-
-### Fixed
-- `HolographicMemoryProvider.shutdown` now explicitly calls `store.close()` before dropping the reference, preventing file-handle leaks on long-running processes.
-- `MemoryStore.close()` now executes `PRAGMA wal_checkpoint(FULL)` before closing the connection, flushing any pending WAL writes to the main database file.
-
-
-### Changed
-- Refactored `MemoryStore.consolidate_facts` to perform `UPDATE` (setting `merged_into` to the target consolidated fact ID) instead of physical `DELETE` of source facts.
-- Updated all 9 read paths (`search_facts`, `list_facts`, `_find_consolidation_candidates`, `_fetch_facts`, `probe`, `related`, `reason`, `contradict`, and FTS5 JOIN) to strictly filter out superseded facts (`merged_into IS NULL`).
-- Decommissioned the HRR ranking leg from `FactRetriever.search` RRF fusion, simplifying search to a 2-way FTS5 + Jaccard RRF fusion. This decision was based on real-world A/B testing on a 343-fact corpus showing HRR is noise for unmatched queries and redundant for matched ones.
-- Removed A/B testing logs/instrumentation and the corresponding `test_rrf_ab_testing_logs` unit test.
-
+- Migration v6: rebuild `facts_fts` to index **all** facts (including soft-deleted `merged_into IS NOT NULL`), fixing the v5 active-only coverage bug that broke reactivation.
+- `_hrr_quality_audit.py` diagnostic script for side-by-side 3-way vs 2-way RRF evaluation on a live database.
 - RRF (Reciprocal Rank Fusion) based `FactRetriever.search` combining FTS5, Jaccard token overlap, and HRR vector similarity using rank positions instead of raw scores.
 - Multiplicative trust/recency boosts centered at 1.0 (±10% for trust).
 - Graceful fallback to FTS5 + Jaccard RRF when numpy is unavailable.
-- `MemoryStore.normalize_entities()` for merging fragmented entity variants (e.g. "K2.7" / "K2_7") into canonical entities with aliases; canonical selection prefers the most specific name (digits/punctuation/length) to avoid collapsing into vague forms.
-- Numeric/date/version signature gate in entity clustering: "K2" and "K2.7" (series vs version) are no longer merged even when string similarity is high.
-- Tightened default entity normalization thresholds (edit 0.85 / token 0.9) to further reduce false merges while still catching spacing/punctuation variants.
-- Schema migration framework with `schema_version` table, automatic baseline detection for legacy databases, and pre-migration `.db.bak.v{n}` backups (WAL checkpoint before copy; foreign keys disabled during migrations and re-enabled/check afterwards).
-- Migration v2: added `documents` table and nullable `facts.source_doc_id` foreign key (ON DELETE SET NULL) for storing source documents alongside extracted facts.
+- `MemoryStore.normalize_entities()` for merging fragmented entity variants into canonical entities with aliases.
+- Numeric/date/version signature gate in entity clustering to block hierarchical merges (e.g. "K2" vs "K2.7").
+- Schema migration framework with `schema_version` table, automatic baseline detection, and pre-migration `.db.bak.v{n}` backups.
+- Migration v1: formalized `hrr_vector` column addition.
+- Migration v2: added `documents` table and nullable `facts.source_doc_id` foreign key.
 - Migration v3: added `documents.text_hash` with UNIQUE index for raw-text deduplication.
-- `MemoryStore.retain_document(raw_text, source, category, extractor)`: stores the original article, deduplicates by SHA256 hash, and extracts atomic facts via a pluggable extractor.
-- `FactExtractor` protocol with `_LocalFallbackExtractor` (sentence split, marked as fallback) and `_LLMExtractor` (injected `model_call`, no SDK dependency in core).
-- `fact_store(action='retain')` tool for retaining raw documents from the agent tool surface.
-- `fact_store` tool `normalize` action to trigger entity normalization.
-- Write-time near-duplicate detection in `add_fact` using FTS5 coarse retrieval + Jaccard token overlap; merges wording variants before INSERT.
-- `near_duplicate_threshold` plugin config option (default `0.8`) to tune write-time dedup sensitivity.
-- Local content specificity scoring when merging duplicates: prefers content with more linked entities and numeric/date/version details.
-- HRR capacity warning in `add_fact` / `_merge_into` when a single fact bundles more than `hrr_dim / 4` content items + entities; uses tiktoken when available for CJK text and falls back to the same whitespace split used by HRR encoding.
-- `eval_retain_quality.py` diagnostic script for measuring extraction granularity, estimated LLM token cost, and HRR SNR warnings against a real document.
-- `batch_retain_eval.py` for scanning a directory of `.txt`/`.md`/`.docx`/`.pdf` files, running `retain_document` on each, and producing aggregate granularity / token-cost / SNR-warning statistics.
-- Document chunking in `retain_document`: long documents are split at paragraph/sentence boundaries before extraction so LLM prompts stay within context windows; default `max_chunk_tokens=6000`, configurable via `retain_max_chunk_tokens`.
-- Hardened `_LLMExtractor` prompt with explicit atomicity rules, Chinese-aware splitting instructions, and good/bad examples.
-- Unit tests for RRF search, entity normalization, and write-time dedup under `tests/`.
-- `tests/conftest.py` with minimal stubs for hermes internal modules so tests can run standalone.
-- `AGENTS.md`, `PATCHES.md`, and scaffold files (`TECH_DEBT.md`, `SESSION.md`, `SOUL.md`) documenting architecture, decisions, and debt.
-
-### Fixed
-- Aligned HRR query encoding in search with the fact vector's content component: query text is now `bind(encode_text(...), ROLE_CONTENT)` before comparison, matching the pattern used in `probe()`.
-- Fixed `_resolve_entity` alias lookup: SQLite `LIKE` treated `_` and `%` as wildcards, causing incorrect entity matches (e.g. "K2_7" matching "K2.7"). Now uses case-insensitive equality for names and escaped LIKE for aliases.
+- Migration v4: added `facts.merged_into` for soft-deletion/supersession during consolidation.
+- Migration v5: added trigram tokenizer to `facts_fts` for native CJK/Chinese text search.
+- Pure-Python zero-dependency CJK character segmenter (`tokenize_text` in `holographic.py`).
+- `MemoryStore.retain_document(raw_text, source, category, extractor)`: stores the original article, deduplicates by SHA256 hash, extracts atomic facts via a pluggable extractor, and chunks long documents at paragraph/sentence boundaries.
+- `FactExtractor` protocol with `_LocalFallbackExtractor` and `_LLMExtractor`.
+- `fact_store(action='retain')` tool for retaining raw documents.
+- `fact_store(action='normalize')` tool for entity normalization.
+- `fact_store(action='consolidate')` tool for LLM-driven semantic consolidation.
+- Write-time near-duplicate detection in `add_fact` using FTS5 coarse retrieval + Jaccard token overlap.
+- `near_duplicate_threshold` plugin config option (default `0.8`).
+- Local content specificity scoring when merging duplicates.
+- HRR capacity warning when a single fact bundles too many content items + entities.
+- `eval_retain_quality.py` for measuring extraction granularity and token cost.
+- `batch_retain_eval.py` for scanning a directory of documents and producing aggregate statistics.
+- Integration tests verifying soft-deleted facts are hidden from all read paths and reactivation works.
+- `AGENTS.md`, `TECH_DEBT.md`, `SESSION.md`, `SOUL.md`, `ROADMAP.md`, and `docs/README.md` documenting architecture, decisions, and debt.
 
 ### Changed
-- Removed `fts_weight`, `jaccard_weight`, and `hrr_weight` configuration options and constructor parameters.
+
+- Refactored `MemoryStore.consolidate_facts` to use soft-deletion (`merged_into`) instead of physical `DELETE`.
+- All read paths now strictly filter out superseded facts (`merged_into IS NULL`).
+- Tightened default entity normalization thresholds (edit 0.85 / token 0.9).
+- Removed `fts_weight`, `jaccard_weight`, and `hrr_weight` configuration options; RRF no longer uses raw-score weights.
 - `__init__.py` no longer reads `hrr_weight` from plugin config.
 
 ### Fixed
-- Migration framework now guarantees `PRAGMA foreign_keys = ON` on every `_init_db` path by removing the early `return` inside the migration `try` block and using a guarded `if current < target:` body; added `test_document_delete_cascades_to_source_doc_id` to verify `ON DELETE SET NULL` is actually enforced.
-- Eliminated unstable raw-score weighting of incomparable signals (FTS5 rank, Jaccard ratio, HRR cosine).
+
+- `HolographicMemoryProvider.shutdown` now explicitly calls `store.close()` before dropping the reference.
+- `MemoryStore.close()` now executes `PRAGMA wal_checkpoint(FULL)` before closing.
+- `_resolve_entity` alias lookup now escapes SQLite `LIKE` wildcards so "K2_7" no longer matches "K2.7".
+- Aligned HRR query encoding in search with the fact vector's content component.
+- Migration framework guarantees `PRAGMA foreign_keys = ON` on every `_init_db` path.
+
+### Removed
+
+- `_auto_extract_facts` and the `on_session_end` regex extraction path.
+- `auto_extract` plugin config key.
+- A/B testing logs/instrumentation and the corresponding unit test.
