@@ -2045,7 +2045,12 @@ class MemoryStore:
         return dict(row)
 
     def close(self) -> None:
-        """Close the database connection."""
+        """Checkpoint WAL and close the database connection."""
+        try:
+            self._conn.execute("PRAGMA wal_checkpoint(FULL)")
+            self._conn.commit()
+        except Exception:
+            pass
         self._conn.close()
 
     def __enter__(self) -> "MemoryStore":

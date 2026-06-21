@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from typing import Any, Dict, List
 
 from agent.memory_provider import MemoryProvider
@@ -197,7 +196,6 @@ class HolographicMemoryProvider(MemoryProvider):
         _default_db = f"{display_hermes_home()}/memory_store.db"
         return [
             {"key": "db_path", "description": "SQLite database path", "default": _default_db},
-            {"key": "auto_extract", "description": "Auto-extract facts at session end", "default": "false", "choices": ["true", "false"]},
             {"key": "default_trust", "description": "Default trust score for new facts", "default": "0.5"},
             {"key": "hrr_dim", "description": "HRR vector dimensions", "default": "1024"},
             {"key": "near_duplicate_threshold", "description": "Jaccard threshold for merging near-duplicate facts on write", "default": "0.8"},
@@ -290,11 +288,10 @@ class HolographicMemoryProvider(MemoryProvider):
         return tool_error(f"Unknown tool: {tool_name}")
 
     def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
-        if not self._config.get("auto_extract", False):
-            return
-        if not self._store or not messages:
-            return
-        self._auto_extract_facts(messages)
+        # Auto-extraction via English regex was removed: it was useless for
+        # Chinese, and even in English produced coarse non-atomic facts.
+        # Structured extraction happens explicitly via retain_document + LLM.
+        pass
 
     def on_memory_write(self, action: str, target: str, content: str) -> None:
         """Mirror built-in memory writes as facts."""
@@ -306,6 +303,11 @@ class HolographicMemoryProvider(MemoryProvider):
                 logger.debug("Holographic memory_write mirror failed: %s", e)
 
     def shutdown(self) -> None:
+        if self._store is not None:
+            try:
+                self._store.close()
+            except Exception as e:
+                logger.warning("Error closing memory store on shutdown: %s", e)
         self._store = None
         self._retriever = None
 
@@ -438,47 +440,7 @@ class HolographicMemoryProvider(MemoryProvider):
         except Exception as exc:
             return tool_error(str(exc))
 
-    # -- Auto-extraction (on_session_end) ------------------------------------
 
-    def _auto_extract_facts(self, messages: list) -> None:
-        _PREF_PATTERNS = [
-            re.compile(r'\bI\s+(?:prefer|like|love|use|want|need)\s+(.+)', re.IGNORECASE),
-            re.compile(r'\bmy\s+(?:favorite|preferred|default)\s+\w+\s+is\s+(.+)', re.IGNORECASE),
-            re.compile(r'\bI\s+(?:always|never|usually)\s+(.+)', re.IGNORECASE),
-        ]
-        _DECISION_PATTERNS = [
-            re.compile(r'\bwe\s+(?:decided|agreed|chose)\s+(?:to\s+)?(.+)', re.IGNORECASE),
-            re.compile(r'\bthe\s+project\s+(?:uses|needs|requires)\s+(.+)', re.IGNORECASE),
-        ]
-
-        extracted = 0
-        for msg in messages:
-            if msg.get("role") != "user":
-                continue
-            content = msg.get("content", "")
-            if not isinstance(content, str) or len(content) < 10:
-                continue
-
-            for pattern in _PREF_PATTERNS:
-                if pattern.search(content):
-                    try:
-                        self._store.add_fact(content[:400], category="user_pref")
-                        extracted += 1
-                    except Exception:
-                        pass
-                    break
-
-            for pattern in _DECISION_PATTERNS:
-                if pattern.search(content):
-                    try:
-                        self._store.add_fact(content[:400], category="project")
-                        extracted += 1
-                    except Exception:
-                        pass
-                    break
-
-        if extracted:
-            logger.info("Auto-extracted %d facts from conversation", extracted)
 
 
 # ---------------------------------------------------------------------------

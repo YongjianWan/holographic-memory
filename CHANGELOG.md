@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - reactivation logic in `add_fact`: automatically clears `merged_into` to reactivate a fact if the same exact content is inserted again.
 - Integration tests in `tests/test_consolidation.py` verifying that soft-deleted facts are fully hidden from all 9 query/read paths, and that reactivation works.
 
+### Removed
+- `_auto_extract_facts` and the `on_session_end` regex extraction path: English-only `\bI prefer\b`-style patterns produced coarse non-atomic facts and were wholly ineffective for Chinese text. The `on_session_end` hook is preserved as a no-op stub for hook compatibility. Structured extraction remains available via `retain_document` + LLM.
+- `auto_extract` plugin config key (was the toggle for the removed regex extraction).
+
+### Fixed
+- `HolographicMemoryProvider.shutdown` now explicitly calls `store.close()` before dropping the reference, preventing file-handle leaks on long-running processes.
+- `MemoryStore.close()` now executes `PRAGMA wal_checkpoint(FULL)` before closing the connection, flushing any pending WAL writes to the main database file.
+
+
 ### Changed
 - Refactored `MemoryStore.consolidate_facts` to perform `UPDATE` (setting `merged_into` to the target consolidated fact ID) instead of physical `DELETE` of source facts.
 - Updated all 9 read paths (`search_facts`, `list_facts`, `_find_consolidation_candidates`, `_fetch_facts`, `probe`, `related`, `reason`, `contradict`, and FTS5 JOIN) to strictly filter out superseded facts (`merged_into IS NULL`).
