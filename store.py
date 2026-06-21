@@ -311,13 +311,40 @@ def _migration_v5_trigram_tokenizer(conn: sqlite3.Connection) -> None:
             USING fts5(content, tags, content=facts, content_rowid=fact_id, tokenize="trigram")
         """
     )
-    # 3. Populate it with existing active facts
+    # 3. Populate index from ALL facts (including soft-deleted merged_into IS NOT NULL).
+    # Filtering to active-only here would silently break reactivation: if a merged fact
+    # is later revived via UPDATE merged_into = NULL, it would be absent from the FTS5
+    # index and invisible to search. Query-time filtering (WHERE merged_into IS NULL in
+    # the JOIN to the content= source table) is already handled by the content= FTS5
+    # configuration, so indexing full set is the safe choice.
     conn.execute(
         """
         INSERT INTO facts_fts(rowid, content, tags)
-        SELECT fact_id, content, tags FROM facts WHERE merged_into IS NULL
+        SELECT fact_id, content, tags FROM facts
         """
     )
+
+
+def _migration_v6_fts_fix_merged_coverage(conn: sqlite3.Connection) -> None:
+    """Rebuild facts_fts to include ALL facts, not just active ones.
+
+    v5 migration incorrectly populated facts_fts only from active facts
+    (WHERE merged_into IS NULL). This breaks the soft-delete reactivation
+    contract: when a merged fact is revived via UPDATE merged_into = NULL,
+    the facts_au trigger fires a delete-then-insert sequence in FTS5. The
+    delete half emits a negative phantom entry for a rowid that was never in
+    the index, corrupting FTS5 internal state.
+
+    The 'rebuild' command re-reads ALL rows from the content= source table
+    (facts), producing a correct full-coverage FTS5 index. Query-time JOINs
+    on merged_into IS NULL handle active-only filtering at search time.
+
+    NOTE: For content= FTS5 tables, SELECT rowid FROM facts_fts reads from
+    the content source table (not the FTS shadow tables), so a rowid comparison
+    cannot detect partial coverage. The rebuild is always run: rebuilding a
+    correct index is idempotent and produces a correct index.
+    """
+    conn.execute("INSERT INTO facts_fts(facts_fts) VALUES ('rebuild')")
 
 
 _MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
@@ -326,6 +353,7 @@ _MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _migration_v3_document_hash,
     _migration_v4_merged_into,
     _migration_v5_trigram_tokenizer,
+    _migration_v6_fts_fix_merged_coverage,
 ]
 
 
@@ -380,6 +408,10 @@ def _detect_schema_version(conn: sqlite3.Connection) -> int:
         and "hrr_vector" in fact_columns
         and "documents" in tables
     ):
+        # v5 and v6 have identical schema structure (same tables/columns/tokenizer).
+        # We cannot distinguish them by schema alone. Always return 5 so that v6
+        # migration (FTS5 rebuild) runs. The rebuild is idempotent and safe to
+        # run on an already-correct index.
         return 5
     if (
         "merged_into" in fact_columns

@@ -23,8 +23,8 @@ class TestMigrations:
             ).fetchone()
             assert row is not None
             # _SCHEMA is the latest structure, so a fresh DB is recognised as
-            # already at v5 and no migrations (and no backup) are needed.
-            assert int(row["version"]) == 5
+            # already at v6 and no migrations (and no backup) are needed.
+            assert int(row["version"]) == 6
 
             tables = {
                 r["name"]
@@ -48,7 +48,7 @@ class TestMigrations:
         finally:
             store.close()
             # No backup should have been created for a fresh empty database.
-            assert not Path(f"{db_path}.bak.v5").exists()
+            assert not Path(f"{db_path}.bak.v6").exists()
             Path(db_path).unlink(missing_ok=True)
 
     def test_legacy_database_without_schema_version_is_baselined_to_v0(
@@ -87,8 +87,8 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            # Should end at v5 (migrations applied after baseline v0).
-            assert int(row["version"]) == 5
+            # Should end at v6 (migrations applied after baseline v0).
+            assert int(row["version"]) == 6
 
             columns = {
                 r[1]
@@ -139,7 +139,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            assert int(row["version"]) == 5
+            assert int(row["version"]) == 6
 
             columns = {
                 r[1]
@@ -232,7 +232,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            assert int(row["version"]) == 5
+            assert int(row["version"]) == 6
 
             columns = {
                 r[1]
@@ -339,3 +339,81 @@ class TestMigrations:
         finally:
             store.close()
             Path(db_path).unlink(missing_ok=True)
+
+    def test_migration_v6_fts_covers_merged_facts(self) -> None:
+        """v6: FTS5 rebuild must make soft-deleted facts searchable.
+
+        The v5 bug: facts_fts was populated only from active facts.
+        For a content= FTS5 table, this means the FTS5 index entries for
+        merged facts are absent, so text search can't match them even if
+        the source row exists. v6 runs 'rebuild' to re-index from the
+        full content source table, making merged fact content searchable.
+        """
+        from holographic.store import _migration_v6_fts_fix_merged_coverage
+        import pathlib as pl
+
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(
+            "CREATE TABLE facts ("
+            "    fact_id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "    content TEXT NOT NULL UNIQUE,"
+            "    category TEXT DEFAULT 'general',"
+            "    tags TEXT DEFAULT '',"
+            "    trust_score REAL DEFAULT 0.5,"
+            "    retrieval_count INTEGER DEFAULT 0,"
+            "    helpful_count INTEGER DEFAULT 0,"
+            "    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+            "    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+            "    hrr_vector BLOB,"
+            "    source_doc_id INTEGER,"
+            "    merged_into INTEGER"
+            ");"
+            "CREATE VIRTUAL TABLE facts_fts"
+            "    USING fts5(content, tags, content=facts, content_rowid=fact_id, tokenize='trigram');"
+            "CREATE TABLE entities"
+            "    (entity_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL);"
+        )
+        conn.execute(
+            "INSERT INTO facts (content, category, tags) VALUES (?, ?, ?)",
+            ("holographic active", "general", ""),
+        )
+        conn.execute(
+            "INSERT INTO facts (content, category, tags, merged_into) VALUES (?, ?, ?, ?)",
+            ("holographic merged", "general", "", 1),
+        )
+        conn.commit()
+
+        # Reproduce the v5 bug: only index active facts in FTS5
+        conn.execute(
+            "INSERT INTO facts_fts(rowid, content, tags)"
+            " SELECT fact_id, content, tags FROM facts WHERE merged_into IS NULL"
+        )
+        conn.commit()
+
+        # Verify the bug: searching for 'merged' should return 0 results since
+        # the merged fact was not indexed. (trigram needs >= 3 chars: 'mer' works)
+        hits_before = conn.execute(
+            "SELECT facts_fts.rowid FROM facts_fts WHERE facts_fts MATCH 'merged'"
+        ).fetchall()
+        assert len(hits_before) == 0, (
+            f"Bug precondition failed: expected 0 FTS hits for 'merged', got {len(hits_before)}"
+        )
+
+        # Apply v6 fix
+        _migration_v6_fts_fix_merged_coverage(conn)
+        conn.commit()
+
+        # After v6: searching 'merged' must find the previously-missing fact
+        hits_after = conn.execute(
+            "SELECT facts_fts.rowid FROM facts_fts WHERE facts_fts MATCH 'merged'"
+        ).fetchall()
+        assert len(hits_after) == 1, (
+            f"After v6, expected 1 FTS hit for 'merged', got {len(hits_after)}"
+        )
+
+        conn.close()
+        pl.Path(db_path).unlink(missing_ok=True)
