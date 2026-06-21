@@ -11,20 +11,6 @@
 
 ## L2 债务（阻塞演进或导致结果不可信）
 
-### HRR search 路信号被 entity 成分稀释
-
-`FactRetriever._hrr_ranking` 当前把 query 用 `bind(encode_text(query), ROLE_CONTENT)` 对齐到 fact 向量的 content 成分。但 fact 向量本身是 `content + entities` 的 bundle，query 只匹配 content 那份信号，其余 entity 成分对 query 来说是噪声。
-
-- **当前影响**：HRR 那路名次质量偏弱。RRF 共识机制（FTS5 + Jaccard + HRR）仍在兜底，日常查询尚可用。
-- **触发条件**：若实测 HRR 路在 RRF 中贡献接近随机（或 entity 碎裂严重到 HRR 路完全失效），需升级为更干净的解法——unbind 出 fact 的 content 成分再与 query 比。
-- **为什么不现在改**：unbind 版需要每条 fact 显式维护自己的 role 结构，实现更复杂；而 RRF 的共识机制已让弱 HRR 信号不至于破坏整体排序。先观察实测数据。
-
-### RRF A/B 测试中 HRR 路去留判据
-
-在 `retrieval.py` 中有 `3-way RRF` (FTS5 + Jaccard + HRR) 和 `2-way RRF` (FTS5 + Jaccard) 的 A/B 测试插桩，用以实测 HRR 那路是否属于噪声。
-- **判据规则**：若在全量语料上跑 30 个真实 query，3-way RRF 与 2-way RRF 的 top-5 overlap 中位数大于 0.90，说明 HRR 路对结果排序几乎没有有效干预，可视为纯噪声，应当将其从 RRF 融合逻辑中彻底踢除以简化系统复杂度。
-- **当前状态**：已开启 DEBUG 日志插桩进行数据累积，待全量评测完后执行决策。
-
 
 ### 实体归一化版本号后缀混淆风险
 
@@ -68,7 +54,7 @@
 
 ---
 
-> **当前活跃债务总览**：L1 **0** | L2 **3** | 架构 **0** | L3 **3** | 合计 **6**
+> **当前活跃债务总览**：L1 **0** | L2 **2** | 架构 **0** | L3 **3** | 合计 **5**
 
 ---
 
@@ -98,4 +84,4 @@
 
 ---
 
-*Last updated: 2026-06-21（活跃债务：L1=0 / L2=3 / 架构=0 / L3=3）*
+*Last updated: 2026-06-21（活跃债务：L1=0 / L2=2 / 架构=0 / L3=3）*

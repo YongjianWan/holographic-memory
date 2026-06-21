@@ -93,15 +93,6 @@ class TestRRFSearch:
         assert len(results) == 1
         assert "language" in results[0]["content"]
 
-    def test_rrf_ab_testing_logs(self, retriever: FactRetriever, caplog: pytest.LogCaptureFixture) -> None:
-        import logging
-        retriever.store.add_fact("Python is a programming language")
-        retriever.store.add_fact("Java is also a programming language")
-
-        with caplog.at_level(logging.DEBUG):
-            results = retriever.search("Python programming", limit=5)
-            assert results
-            assert any("RRF A/B Test for query=" in m for m in caplog.messages)
 
 
 class TestRRFInternals:

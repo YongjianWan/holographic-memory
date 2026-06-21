@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Migration v4: added `merged_into` column in `facts` table for soft-delete/supersession of consolidated facts, keeping original facts and relations fully auditable.
+- reactivation logic in `add_fact`: automatically clears `merged_into` to reactivate a fact if the same exact content is inserted again.
+- Integration tests in `tests/test_consolidation.py` verifying that soft-deleted facts are fully hidden from all 9 query/read paths, and that reactivation works.
+
+### Changed
+- Refactored `MemoryStore.consolidate_facts` to perform `UPDATE` (setting `merged_into` to the target consolidated fact ID) instead of physical `DELETE` of source facts.
+- Updated all 9 read paths (`search_facts`, `list_facts`, `_find_consolidation_candidates`, `_fetch_facts`, `probe`, `related`, `reason`, `contradict`, and FTS5 JOIN) to strictly filter out superseded facts (`merged_into IS NULL`).
+- Decommissioned the HRR ranking leg from `FactRetriever.search` RRF fusion, simplifying search to a 2-way FTS5 + Jaccard RRF fusion. This decision was based on real-world A/B testing on a 343-fact corpus showing HRR is noise for unmatched queries and redundant for matched ones.
+- Removed A/B testing logs/instrumentation and the corresponding `test_rrf_ab_testing_logs` unit test.
+
 - RRF (Reciprocal Rank Fusion) based `FactRetriever.search` combining FTS5, Jaccard token overlap, and HRR vector similarity using rank positions instead of raw scores.
 - Multiplicative trust/recency boosts centered at 1.0 (±10% for trust).
 - Graceful fallback to FTS5 + Jaccard RRF when numpy is unavailable.
