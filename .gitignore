@@ -30,3 +30,19 @@ Thumbs.db
 
 # Hermes runtime data (do not commit live memory stores)
 memory_store.db*
+
+# Diagnostic output from eval scripts
+eval_retain_report.txt
+eval_retain_report.json
+batch_retain_report.txt
+batch_retain_report.json
+sample_facts_review.md
+sample_facts_review.json
+sample_facts_review_*.json
+sample_facts_review_*.log
+sample_facts_residuals.json
+sample_facts_unclear.json
+corpus_audit_*.json
+corpus_audit_*.log
+corpus_audit_out.txt
+*.log

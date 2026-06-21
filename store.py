@@ -5,6 +5,7 @@ Single-user Hermes memory store plugin.
 
 import difflib
 import hashlib
+import logging
 import math
 import re
 import shutil
@@ -18,6 +19,128 @@ try:
     from . import holographic as hrr
 except ImportError:
     import holographic as hrr  # type: ignore[no-redef]
+
+logger = logging.getLogger(__name__)
+
+# Optional tiktoken for a more realistic content-item count in HRR capacity
+# warnings. If unavailable we fall back to the same whitespace split used by
+# encode_text(). The core package does not depend on tiktoken.
+try:
+    import tiktoken
+
+    _CONTENT_ITEM_ENCODING = tiktoken.get_encoding("cl100k_base")
+except Exception:  # pragma: no cover - tiktoken is optional
+    _CONTENT_ITEM_ENCODING = None
+
+
+def _content_item_count(content: str) -> int:
+    """Count discrete content items for HRR capacity estimation.
+
+    Mirrors encode_text tokenisation when tiktoken is unavailable. When
+    tiktoken is present we use its token count, which is much more meaningful
+    for Chinese text where whitespace split would treat a whole sentence as one
+    item.
+    """
+    if _CONTENT_ITEM_ENCODING is not None:
+        return len(_CONTENT_ITEM_ENCODING.encode(content))
+    return len(content.split())
+
+
+_SENTENCE_END_RE = re.compile(r"([。！？.!?])")
+
+
+def _split_sentences(text: str) -> list[str]:
+    """Split text into sentences, preserving Chinese and ASCII sentence endings."""
+    parts = _SENTENCE_END_RE.split(text)
+    sentences: list[str] = []
+    i = 0
+    while i < len(parts):
+        if i + 1 < len(parts) and parts[i + 1] in "。！？.!?":
+            sentences.append(parts[i] + parts[i + 1])
+            i += 2
+        else:
+            if parts[i].strip():
+                sentences.append(parts[i])
+            i += 1
+    return [s.strip() for s in sentences if s.strip()]
+
+
+def _hard_split_text(text: str, max_tokens: int) -> list[str]:
+    """Emergency split when a single sentence exceeds max_tokens."""
+    chunks: list[str] = []
+    while text:
+        if _CONTENT_ITEM_ENCODING is not None:
+            # Binary search the longest prefix that fits within the budget.
+            low, high = 1, len(text)
+            while low < high:
+                mid = (low + high + 1) // 2
+                if _content_item_count(text[:mid]) <= max_tokens:
+                    low = mid
+                else:
+                    high = mid - 1
+            split_at = low
+        else:
+            # Roughly 4 chars per token for CJK; 6 for Latin.
+            split_at = max_tokens * 4
+        chunk = text[:split_at].strip()
+        if chunk:
+            chunks.append(chunk)
+        text = text[split_at:].strip()
+    return chunks
+
+
+def _chunk_text(raw_text: str, max_tokens: int) -> list[str]:
+    """Split a long document into LLM-friendly chunks.
+
+    Splits first at paragraph boundaries, then at sentence boundaries, and only
+    performs hard splits when a single sentence is still too long. Preserves as
+    much context as possible while staying under the token budget.
+    """
+    if _content_item_count(raw_text) <= max_tokens:
+        return [raw_text]
+
+    paragraphs = [p.strip() for p in raw_text.split("\n\n") if p.strip()]
+    chunks: list[str] = []
+    current = ""
+    current_tokens = 0
+
+    for para in paragraphs:
+        para_tokens = _content_item_count(para)
+        if para_tokens > max_tokens:
+            # Flush whatever is currently buffered.
+            if current:
+                chunks.append(current)
+                current = ""
+                current_tokens = 0
+            # Split oversized paragraph by sentence.
+            for sent in _split_sentences(para):
+                sent_tokens = _content_item_count(sent)
+                if sent_tokens > max_tokens:
+                    if current:
+                        chunks.append(current)
+                        current = ""
+                        current_tokens = 0
+                    chunks.extend(_hard_split_text(sent, max_tokens))
+                elif current_tokens + sent_tokens > max_tokens:
+                    chunks.append(current)
+                    current = sent
+                    current_tokens = sent_tokens
+                else:
+                    current = f"{current} {sent}".strip() if current else sent
+                    current_tokens += sent_tokens
+        elif current_tokens + para_tokens > max_tokens:
+            if current:
+                chunks.append(current)
+            current = para
+            current_tokens = para_tokens
+        else:
+            current = f"{current}\n\n{para}".strip() if current else para
+            current_tokens += para_tokens
+
+    if current:
+        chunks.append(current)
+    return chunks
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (
@@ -286,11 +409,25 @@ class _LLMExtractor:
 
     def _build_prompt(self, raw_text: str, category: str) -> str:
         return (
-            "Extract atomic facts from the following text. One fact per line. "
-            "Each fact must be self-contained and concise. Do not use bullets, "
-            "numbers, or markdown.\n\n"
+            "You are an atomic-fact extractor. Extract one atomic fact per line from the text below.\n\n"
+            "Hard rules:\n"
+            "- ONE fact per line. No compound sentences.\n"
+            "- Each fact must be self-contained: understandable without the surrounding text.\n"
+            "- Preserve exact names, dates, numbers, versions, and scores.\n"
+            "- Do NOT use bullets, numbers, markdown, or introductory phrases like 'The fact is'.\n"
+            "- If the text contains multiple related claims, split them into separate facts.\n"
+            "- Aim for 5-25 words per fact. Never exceed 60 words / 80 tokens per fact.\n"
+            "- For Chinese text, split at Chinese sentence/clause boundaries (，。；：） and keep each fact short.\n\n"
+            "Good examples:\n"
+            "- 投促局项目由李善光负责，当前状态为开发中。\n"
+            "- 凌云志企业综合评分为85分，投资意愿88分。\n"
+            "- 发改委项目要求所有功能入口整合为Chat形式。\n\n"
+            "Bad example (too coarse, do NOT output like this):\n"
+            "- 投促局项目由李善光负责且已四次汇报，毕局确认，凌云志85分，发改委要Chat入口。\n\n"
             f"Category: {category}\n\n"
-            f"---\n{raw_text}\n---\n\n"
+            "---\n"
+            f"{raw_text}\n"
+            "---\n\n"
             "Atomic facts:"
         )
 
@@ -378,6 +515,13 @@ _RE_AKA          = re.compile(
     re.IGNORECASE,
 )
 
+# Quoted strings often capture whole phrases/sentences (e.g. a task body) rather
+# than named entities. Reject candidates that are too long or contain sentence-
+# level punctuation. This is a write-time guard; existing dirty entities still
+# need a normalization pass.
+_MAX_QUOTED_ENTITY_LEN = 20
+_RE_SENTENCE_PUNCT     = re.compile(r"[。！？；，、：,;:!?\n\r]")
+
 # Dates, versions, and bare digit sequences — all count toward content specificity.
 # Version-like tokens treat '.', '_', '-' as equivalent separators so that
 # "K2.7", "K2_7", and "K2-7" share the same numeric signature.
@@ -451,6 +595,13 @@ def _content_specificity(content: str, entity_count: int) -> float:
         return 0.0
     length = max(len(content), 10)
     return (entity_count + _numeric_hit_count(content)) / math.log(length)
+
+
+def _snr(dim: int, n_items: int) -> float:
+    """HRR signal-to-noise ratio for n_items bundled into dim dimensions."""
+    if n_items <= 0:
+        return float("inf")
+    return math.sqrt(dim / n_items)
 
 
 def _split_aliases(aliases: str | None) -> list[str]:
@@ -536,6 +687,29 @@ class MemoryStore:
         self._conn.executescript(_SCHEMA)
         _run_migrations(self._conn, self.db_path)
         self._conn.commit()
+
+    def _warn_hrr_capacity(self, content: str, entity_names: list[str]) -> None:
+        """Warn when a single fact bundles too many items for its HRR dimension.
+
+        The HRR vector for a fact stores one bound component per content item
+        (token) plus one per entity. For dim=1024 the SNR drops below 2.0 once
+        the total exceeds dim/4 (256 items), which is a hard signal that the
+        fact should be split into smaller atomic facts.
+        """
+        n_content = _content_item_count(content)
+        n_entities = len(entity_names)
+        n_items = n_content + n_entities
+        if n_items > self.hrr_dim // 4:
+            snr = _snr(self.hrr_dim, n_items)
+            logger.warning(
+                "HRR capacity warning: fact bundles %d content items + %d entities = %d "
+                "items (dim=%d, SNR=%.2f). Split into atomic facts for reliable retrieval.",
+                n_content,
+                n_entities,
+                n_items,
+                self.hrr_dim,
+                snr,
+            )
 
     # ------------------------------------------------------------------
     # Near-duplicate detection / merge
@@ -673,9 +847,11 @@ class MemoryStore:
                     "DELETE FROM fact_entities WHERE fact_id = ?",
                     (existing_id,),
                 )
-                for name in self._extract_entities(content):
+                new_entity_names = self._extract_entities(content)
+                for name in new_entity_names:
                     entity_id = self._resolve_entity(name)
                     self._link_fact_entity(existing_id, entity_id)
+                self._warn_hrr_capacity(content, new_entity_names)
                 self._compute_hrr_vector(existing_id, content)
                 self._rebuild_bank(category)
                 return existing_id
@@ -748,9 +924,13 @@ class MemoryStore:
                 return int(row["fact_id"])
 
             # Entity extraction and linking
-            for name in self._extract_entities(content):
+            entity_names = self._extract_entities(content)
+            for name in entity_names:
                 entity_id = self._resolve_entity(name)
                 self._link_fact_entity(fact_id, entity_id)
+
+            # Capacity warning before committing the vector.
+            self._warn_hrr_capacity(content, entity_names)
 
             # Compute HRR vector after entity linking
             self._compute_hrr_vector(fact_id, content)
@@ -764,6 +944,7 @@ class MemoryStore:
         source: str = "",
         category: str = "general",
         extractor: FactExtractor | None = None,
+        max_chunk_tokens: int = 6000,
     ) -> dict:
         """Store a raw document and extract atomic facts from it.
 
@@ -772,8 +953,12 @@ class MemoryStore:
         extractor returns nothing, the document remains as an orphan row and
         can be re-extracted later.
 
+        Long documents are chunked before extraction so that LLM-based
+        extractors stay within context-window limits without losing paragraph/
+        sentence boundaries.
+
         Returns a dict with ``doc_id``, ``facts_added``, ``extractor_kind``,
-        and ``fact_ids``.
+        ``fact_ids``, and ``chunks_processed``.
         """
         if extractor is None:
             extractor = _LocalFallbackExtractor()
@@ -803,27 +988,36 @@ class MemoryStore:
             assert row is not None
             doc_id: int = row["doc_id"]
 
-        facts = extractor.extract(raw_text, category)
+        # Chunk before extraction so LLM prompts don't overflow. Fallback
+        # extractors also benefit from avoiding pathological whole-document
+        # splits on Chinese text.
+        chunks = _chunk_text(raw_text, max_chunk_tokens)
 
         fact_ids: list[int] = []
         is_fallback = extractor.kind == "fallback"
         fact_trust = _FALLBACK_TRUST if is_fallback else None
 
-        for fact in facts:
-            fact = fact.strip()
-            if not fact:
-                continue
+        for chunk in chunks:
             try:
-                fact_id = self.add_fact(
-                    fact,
-                    category=category,
-                    source_doc_id=doc_id,
-                    trust=fact_trust,
-                )
-                fact_ids.append(fact_id)
+                chunk_facts = extractor.extract(chunk, category)
             except Exception:
-                # A single bad fact should not kill the whole batch.
+                # A failed chunk should not kill the whole document.
                 continue
+            for fact in chunk_facts:
+                fact = fact.strip()
+                if not fact:
+                    continue
+                try:
+                    fact_id = self.add_fact(
+                        fact,
+                        category=category,
+                        source_doc_id=doc_id,
+                        trust=fact_trust,
+                    )
+                    fact_ids.append(fact_id)
+                except Exception:
+                    # A single bad fact should not kill the whole batch.
+                    continue
 
         status = "document_stored_no_facts" if not fact_ids else "ok"
         return {
@@ -831,6 +1025,7 @@ class MemoryStore:
             "facts_added": len(fact_ids),
             "extractor_kind": extractor.kind,
             "fact_ids": fact_ids,
+            "chunks_processed": len(chunks),
             "status": status,
         }
 
@@ -1261,6 +1456,9 @@ class MemoryStore:
         3. Single-quoted terms             e.g. 'pytest'
         4. AKA patterns                    e.g. "Guido aka BDFL" -> two entities
 
+        Quoted candidates are rejected if they look like a phrase or sentence
+        rather than a named entity (too long or containing sentence punctuation).
+
         Returns a deduplicated list preserving first-seen order.
         """
         seen: set[str] = set()
@@ -1272,14 +1470,27 @@ class MemoryStore:
                 seen.add(stripped.lower())
                 candidates.append(stripped)
 
+        def _looks_like_phrase_not_entity(s: str) -> bool:
+            if len(s) > _MAX_QUOTED_ENTITY_LEN:
+                return True
+            if _RE_SENTENCE_PUNCT.search(s):
+                return True
+            return False
+
         for m in _RE_CAPITALIZED.finditer(text):
-            _add(m.group(1))
+            candidate = m.group(1)
+            if len(candidate) <= _MAX_QUOTED_ENTITY_LEN:
+                _add(candidate)
 
         for m in _RE_DOUBLE_QUOTE.finditer(text):
-            _add(m.group(1))
+            candidate = m.group(1)
+            if not _looks_like_phrase_not_entity(candidate):
+                _add(candidate)
 
         for m in _RE_SINGLE_QUOTE.finditer(text):
-            _add(m.group(1))
+            candidate = m.group(1)
+            if not _looks_like_phrase_not_entity(candidate):
+                _add(candidate)
 
         for m in _RE_AKA.finditer(text):
             _add(m.group(1))

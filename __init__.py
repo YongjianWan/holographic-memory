@@ -158,6 +158,7 @@ class HolographicMemoryProvider(MemoryProvider):
             {"key": "default_trust", "description": "Default trust score for new facts", "default": "0.5"},
             {"key": "hrr_dim", "description": "HRR vector dimensions", "default": "1024"},
             {"key": "near_duplicate_threshold", "description": "Jaccard threshold for merging near-duplicate facts on write", "default": "0.8"},
+            {"key": "retain_max_chunk_tokens", "description": "Max tokens per chunk for document retention (LLM context window guard)", "default": "6000"},
         ]
 
     def initialize(self, session_id: str, **kwargs) -> None:
@@ -175,6 +176,7 @@ class HolographicMemoryProvider(MemoryProvider):
         hrr_dim = int(self._config.get("hrr_dim", 1024))
         temporal_decay = int(self._config.get("temporal_decay_half_life", 0))
         near_duplicate_threshold = float(self._config.get("near_duplicate_threshold", 0.8))
+        retain_max_chunk_tokens = int(self._config.get("retain_max_chunk_tokens", 6000))
 
         self._store = MemoryStore(
             db_path=db_path,
@@ -182,6 +184,7 @@ class HolographicMemoryProvider(MemoryProvider):
             hrr_dim=hrr_dim,
             near_duplicate_threshold=near_duplicate_threshold,
         )
+        self._retain_max_chunk_tokens = max(256, retain_max_chunk_tokens)
         self._retriever = FactRetriever(
             store=self._store,
             temporal_decay_half_life=temporal_decay,
@@ -284,6 +287,7 @@ class HolographicMemoryProvider(MemoryProvider):
                     args["content"],
                     source=args.get("source", ""),
                     category=args.get("category", "general"),
+                    max_chunk_tokens=self._retain_max_chunk_tokens,
                 )
                 return json.dumps(result)
 

@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Write-time near-duplicate detection in `add_fact` using FTS5 coarse retrieval + Jaccard token overlap; merges wording variants before INSERT.
 - `near_duplicate_threshold` plugin config option (default `0.8`) to tune write-time dedup sensitivity.
 - Local content specificity scoring when merging duplicates: prefers content with more linked entities and numeric/date/version details.
+- HRR capacity warning in `add_fact` / `_merge_into` when a single fact bundles more than `hrr_dim / 4` content items + entities; uses tiktoken when available for CJK text and falls back to the same whitespace split used by HRR encoding.
+- `eval_retain_quality.py` diagnostic script for measuring extraction granularity, estimated LLM token cost, and HRR SNR warnings against a real document.
+- `batch_retain_eval.py` for scanning a directory of `.txt`/`.md`/`.docx`/`.pdf` files, running `retain_document` on each, and producing aggregate granularity / token-cost / SNR-warning statistics.
+- Document chunking in `retain_document`: long documents are split at paragraph/sentence boundaries before extraction so LLM prompts stay within context windows; default `max_chunk_tokens=6000`, configurable via `retain_max_chunk_tokens`.
+- Hardened `_LLMExtractor` prompt with explicit atomicity rules, Chinese-aware splitting instructions, and good/bad examples.
 - Unit tests for RRF search, entity normalization, and write-time dedup under `tests/`.
 - `tests/conftest.py` with minimal stubs for hermes internal modules so tests can run standalone.
 - `AGENTS.md`, `PATCHES.md`, and scaffold files (`TECH_DEBT.md`, `SESSION.md`, `SOUL.md`) documenting architecture, decisions, and debt.

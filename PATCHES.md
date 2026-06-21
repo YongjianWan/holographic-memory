@@ -217,4 +217,47 @@ if sig_a or sig_b:
 
 ---
 
+---
+
+## Patch 8 — 单条 fact 的 HRR 容量 warning
+
+**问题**
+`retain_document` / `add_fact` 落地后，没人把关单条 fact 的粒度。中文会议记录里 fallback 提取器会把整段甚至整篇文章塞进一条 fact，HRR 向量里的 content 成分 bundle 了几百个 token，SNR 掉到 1 以下，检索时基本变成噪声。
+
+**处置**
+✅ **已应用**。
+
+**代码位置**
+`store.py`：`_warn_hrr_capacity`、`_content_item_count`、`add_fact`、`_merge_into`、`_chunk_text`、`retain_document`。
+`eval_retain_quality.py`：单文档诊断。
+`batch_retain_eval.py`：3-5 文件批量试跑 + 汇总。
+`__init__.py`：`retain_max_chunk_tokens` 配置透传。
+
+```python
+def _content_item_count(content: str) -> int:
+    if _CONTENT_ITEM_ENCODING is not None:  # optional tiktoken
+        return len(_CONTENT_ITEM_ENCODING.encode(content))
+    return len(content.split())
+
+# dim=1024 时阈值 dim/4 == 256
+self._warn_hrr_capacity(content, entity_names)
+```
+
+**实现要点**
+- 阈值就是源码里 `holographic.snr_estimate` 的 SNR<2.0 临界点：`n_items > dim/4`。
+- content 项数优先用 tiktoken（对中文更准），没有 tiktoken 时回退到与 `encode_text` 一致的 whitespace split。
+- entity 数直接取 `len(_extract_entities(content))`。
+- warning 在 `add_fact` INSERT 之后、算 HRR 之前触发；`_merge_into` 改写 content 时也触发。
+- 用 `logging.warning`，不阻塞写入，产物仍进库——warning 是给运营/调试看的信号，不是硬性拒绝。
+
+**理由**
+这是 §3.5 / Patch 7 定死的下一步：入口有了，必须量粒度、量成本、量 SNR。256 这个硬指标来自 HRR 容量公式，不是肉眼。
+
+**遗留尾巴**
+- 当前只警告，不分拆。自动原子化需要 LLM 或更好的本地 splitter，归 P1/P0 下一步。
+- `encode_text` 本身仍用 whitespace split，中文语义上仍是字/词混绑；warning 用 tiktoken 只是诊断口径，不改变 HRR 向量语义。
+- 阈值 256 对 dim=1024 是理论 SNR=2.0；真实可接受的粒度还需要在你自己的数据上标定。
+
+---
+
 *Last updated: 2026-06-20*

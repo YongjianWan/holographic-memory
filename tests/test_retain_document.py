@@ -160,6 +160,66 @@ class TestRetainDocument:
             store.close()
             Path(db_path).unlink(missing_ok=True)
 
+    def test_add_fact_warns_when_hrr_capacity_exceeded(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging
+
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=64)
+        try:
+            with caplog.at_level(logging.WARNING, logger="store"):
+                store.add_fact("word " * 20)
+            assert any("HRR capacity warning" in m for m in caplog.messages)
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_add_fact_no_warning_for_small_fact(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging
+
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=1024)
+        try:
+            with caplog.at_level(logging.WARNING, logger="store"):
+                store.add_fact("short atomic fact")
+            assert not any("HRR capacity warning" in m for m in caplog.messages)
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_retain_document_chunks_long_text(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            calls: list[int] = []
+
+            def fake_llm(prompt: str) -> str:
+                calls.append(1)
+                return f"Chunk {len(calls)} fact."
+
+            extractor = _LLMExtractor(model_call=fake_llm)
+            # Repeating Chinese sentence with spaces; enough tokens to require >1 chunk.
+            text = "这是一个测试句子。 " * 200
+            result = store.retain_document(
+                text, extractor=extractor, max_chunk_tokens=100
+            )
+
+            assert result["chunks_processed"] > 1
+            assert result["facts_added"] > 1
+            assert result["facts_added"] == result["chunks_processed"]
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
 
 class TestExtractors:
     def test_local_fallback_extractor_splits_sentences(self) -> None:

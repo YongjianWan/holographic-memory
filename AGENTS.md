@@ -34,6 +34,7 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 1. 在当前工作目录改代码、跑测试、做版本控制。
 2. 改动稳定后，再复制/同步到 AppData 下的实时目录，供 hermes 实际加载。
 3. 不要把实时目录里的 `.db` 文件或 `__pycache__` 拖进本仓库。
+4. **任何 API key / 令牌只能走环境变量**，禁止写死在源码、测试、文档或提交记录里；eval 脚本产生的 `.log`、`.json` 中间报告也不要提交。
 
 ## 3. 当前架构现状（读源码后确认）
 
@@ -80,6 +81,7 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 
 - 三路检索（FTS5 / Jaccard / HRR）**禁止直接拿原始分线性相加**。
 - 必须改用 **RRF（Reciprocal Rank Fusion）**：`score = Σ 1/(60 + rank_i)`，k=60。
+- **HRR 那路是假设，不是事实**：全量数据上来后必须实测三路 RRF 与两路（FTS5+Jaccard）RRF 的排序差异。若在真实语料上 HRR 两两相似度塌在噪声区间（如 366 条云提取事实 max≈0.089、p99≈0.052），则 HRR 给出的“排名”就是噪声，会往共识分里掺沙子。届时应将 HRR 在 RRF 中降权或踢出，而不是继续调 HRR 阈值。
 - trust / recency 只能做**乘法 boost**，不能做加法；boost 中心 1.0、限幅 ±10% 左右。
 
 ### 4.4 库卫生（P0/P1/P2）红线
@@ -87,6 +89,7 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 - **P0 写入探重**必须放在 `add_fact` 的 INSERT 之前，不能依赖 `IntegrityError`。
 - `retain_document` 是输入侧闭环：先按 `text_hash` 去重落地原文，再提炼 fact；提炼失败保留孤儿 document，可重跑。
 - Fallback 提取器只保证“不崩”，不替代 LLM 粒度；fallback fact 必须降 trust 并标记。
+- **fallback 语料禁止用于标定任何阈值/分布/质量指标**（包括 HRR 阈值、entity 质量、分类分布）。key 失效时宁可等，也不要拿 fallback 跑出来的数当“临时基准”——它的粒度是系统性偏烂的，会被误当真基准用。fallback 只能用来验证脚本是否能跑通。
 - P0 探重只能用 **FTS5 + Jaccard**，不要用 HRR（新 fact 还没 entities，向量口径不同）。
 - P0 探重的 SQL **不能** 更新 `retrieval_count`，也**不能**过滤低 trust。
 - **P1 必须先做 entity 归一化，再做 P2 建边**——边来自 entity，entity 碎裂则边全脏。

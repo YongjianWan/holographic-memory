@@ -6,6 +6,16 @@ import sys
 import types
 from pathlib import Path
 
+# When running pytest from the project root, Python puts the root directory on
+# sys.path first. That causes `import holographic` to resolve to the file
+# `holographic.py` instead of the package directory, breaking `from holographic.store
+# import ...`. Insert the parent directory first and remove the misleading cwd entry.
+_project_root = Path(__file__).resolve().parent.parent
+_parent_dir = _project_root.parent
+if "" in sys.path:
+    sys.path.remove("")
+sys.path.insert(0, str(_parent_dir))
+
 
 def _apply_wal_with_fallback(conn, db_label: str = "") -> None:
     """No-op stub for hermes_state.apply_wal_with_fallback."""

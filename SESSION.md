@@ -6,7 +6,16 @@
 
 ## 当前焦点
 
-已完成 migration 框架 + v2 schema（`documents` 表 + `facts.source_doc_id`）。下一步实现 `retain_document(raw_text)` 文档入口：LLM 一次性提炼成原子 facts，原文存 documents，facts 带 `source_doc_id`。
+- `retain_document` 文档入口已落地（Patch 7）。
+- 已把 `_LLMExtractor` prompt 重写（原子化约束写死、中文切分、好/坏示例），并在 `retain_document` 里加了段落/句子级 chunking（默认 6000 tokens，可配 `retain_max_chunk_tokens`）。
+- DeepSeek key 已恢复，`batch_retain_eval._DeepSeekExtractor` 已固定 `temperature=0` 以消除多次运行的抖动。
+- **云语料真实分类（366 facts / 4 文件）**：用加强后的分类器重跑，`unclear` 从 32.5% 降到 **0%**。最终分布：domain_fact 56.3%（206）、user_action 15.0%（55）、other_person_action 12.6%（46）、other_person_mentioned 11.5%（42）、meeting_meta 2.7%（10）、other 1.6%（6）、user_mentioned 0.3%（1）。任意 mention 万永健的 fact 共 56（15.3%）。说明之前的“大量 unclear”是启发式关键词太弱，不是事实不可分类。
+- **entity 抽取修正**：在 `store.py` 的 `_extract_entities` 加了写时守卫：引号内候选 >20 字符或包含句中标点（，。！？；：等）视为 phrase/sentence，拒绝作为 entity。`pytest tests/` 全绿（54 passed）。在云语料上：总 entity 仅 5~6 个（中文事实几乎不带引号），修复前脏 entity 1 个（“请准备以下测试环境及资料，周二下午前完成演示”），修复后 0 个。
+- **HRR / RRF 重大发现（云语料 366 facts）**：两两 HRR 相位余弦相似度 p50≈0、p95=0.036、p99≈0.052、**max=0.089**，≥0.80 的候选对为 0。这不只是「HRR 不能用于 P1-2 语义合并」——它顺带说明 §3 RRF 里的 HRR 那一路在真实语料上几乎在输出噪声。若 HRR 给出的排名是噪声，RRF 把它按 `1/(60+rank)` 加进共识分就是掺沙子。0.089 的天花板有多少来自 HRR 本质弱、有多少来自 entity 守卫后平均每 fact 只剩 ~1 个 entity，目前分不开；但无论哪种，**结论方向一致：别再调 HRR 阈值，P1-2 走 entity 共现 + LLM**。下一步必须在全量数据上实测三路 RRF vs 两路（FTS5+Jaccard）RRF，决定 HRR 那路是降权还是踢出。
+- **domain_fact 比例修正为 56.3%**，不是之前凭直觉说的 80%+。加上 user_action 里“项目动作”那部分，往高了算也到不了 80。go/no-go 结论（去掉纯人型 mention 后库仍成立）不变，但余量比直觉薄，需要记着。
+- **方法论红线**：key 失效时拿 fallback 语料（61 facts）标 HRR 阈值、entity 质量、分类分布是**假基准**——这已经是第三次证明 fallback 不能当基准。AGENTS.md 已加红线：fallback 只能验证脚本能跑通，不能出任何数值结论；key 失效就等。
+- Q1 维持 12% 非原子率不动的结论仍有效（基于之前有效的 DeepSeek 运行）。
+- Q2 category 分不分：用户 hub 不 dominant 的结论仍有效，但 bank 容量 warning（689 facts 落在单一 `project` bank）是真实问题，后续应靠真实 category 规则拆分，而不是继续把所有文档塞进 `project`。
 
 ## 进行中
 
@@ -45,4 +54,4 @@
 
 ---
 
-*Last updated: 2026-06-20*
+*Last updated: 2026-06-21*
