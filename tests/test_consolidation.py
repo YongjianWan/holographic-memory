@@ -197,3 +197,98 @@ class TestConsolidationTransaction:
         # Verify it is listed again
         assert fid in {f["fact_id"] for f in store.list_facts(category="project")}
 
+    def test_soft_deleted_facts_hidden_from_all_read_paths(self, store: MemoryStore) -> None:
+        from holographic.retrieval import FactRetriever
+        retriever = FactRetriever(store=store, hrr_dim=256)
+
+        # 1. Add source document
+        store._conn.execute("INSERT INTO documents (raw_text, text_hash) VALUES ('Mia profile', 'hash2')")
+        doc_id = store._conn.execute("SELECT doc_id FROM documents").fetchone()["doc_id"]
+
+        # 2. Add facts (with entities to trigger co-occurrence and retrieval math)
+        fid1 = store.add_fact('"Mia" works as Senior Dev', category="project", tags="work,dev", source_doc_id=doc_id, trust=0.8)
+        fid2 = store.add_fact('"Mia" is promoted to Principal Dev', category="project", tags="work,promo", trust=0.6)
+
+        # Ensure we have another active fact for contradiction testing
+        store.add_fact('"Mia" is doing frontend tasks', category="project", tags="work", trust=0.7)
+
+        # 3. Consolidate them (fid1 & fid2 are soft-deleted, merged into new fact)
+        def mock_model(prompt: str) -> str:
+            return json.dumps({
+                "consolidations": [
+                    {"input_ids": [fid1, fid2], "consolidated_content": '"Mia" is a Principal Dev (previously Senior Dev)'}
+                ]
+            })
+
+        report = store.consolidate_facts(model_call=mock_model, category="project")
+        assert report["facts_merged"] == 2
+        assert report["facts_created"] == 1
+
+        # Get the new consolidated fact id
+        new_fact = store._conn.execute(
+            "SELECT fact_id FROM facts WHERE content LIKE '%Mia%is a Principal%'"
+        ).fetchone()
+        assert new_fact is not None
+        new_fid = new_fact["fact_id"]
+
+        # Verify old facts have merged_into pointing to new_fid
+        assert store._conn.execute("SELECT merged_into FROM facts WHERE fact_id = ?", (fid1,)).fetchone()["merged_into"] == new_fid
+        assert store._conn.execute("SELECT merged_into FROM facts WHERE fact_id = ?", (fid2,)).fetchone()["merged_into"] == new_fid
+
+        # 4. Check all read paths to ensure fid1 and fid2 NEVER appear, but new_fid does
+        
+        # Path 1: store.search_facts
+        search_results = store.search_facts("Mia Senior Dev", category="project", min_trust=0.1)
+        search_ids = {f["fact_id"] for f in search_results}
+        assert fid1 not in search_ids
+        assert fid2 not in search_ids
+
+        # Path 2: store.list_facts
+        list_results = store.list_facts(category="project", min_trust=0.1)
+        list_ids = {f["fact_id"] for f in list_results}
+        assert fid1 not in list_ids
+        assert fid2 not in list_ids
+
+        # Path 3: store._find_near_duplicate (used on write path)
+        dup_id = store._find_near_duplicate('"Mia" works as Senior Dev', category="project", threshold=0.99)
+        assert dup_id != fid1
+        assert dup_id != fid2
+
+        # Path 4: store._find_consolidation_candidates
+        candidates = store._find_consolidation_candidates(category="project")
+        for cluster in candidates:
+            cluster_ids = {f["fact_id"] for f in cluster}
+            assert fid1 not in cluster_ids
+            assert fid2 not in cluster_ids
+
+        # Path 5: retriever.search (RRF search)
+        rrf_results = retriever.search("Mia Senior Dev", category="project", min_trust=0.1)
+        rrf_ids = {f["fact_id"] for f in rrf_results}
+        assert fid1 not in rrf_ids
+        assert fid2 not in rrf_ids
+
+        # Path 6: retriever.probe
+        probe_results = retriever.probe("Mia", category="project")
+        probe_ids = {f["fact_id"] for f in probe_results}
+        assert fid1 not in probe_ids
+        assert fid2 not in probe_ids
+
+        # Path 7: retriever.related
+        related_results = retriever.related("Mia", category="project")
+        related_ids = {f["fact_id"] for f in related_results}
+        assert fid1 not in related_ids
+        assert fid2 not in related_ids
+
+        # Path 8: retriever.reason
+        reason_results = retriever.reason(["Mia"], category="project")
+        reason_ids = {f["fact_id"] for f in reason_results}
+        assert fid1 not in reason_ids
+        assert fid2 not in reason_ids
+
+        # Path 9: retriever.contradict
+        contradict_results = retriever.contradict(category="project", threshold=0.01)
+        for pair in contradict_results:
+            assert pair["fact_a"]["fact_id"] not in (fid1, fid2)
+            assert pair["fact_b"]["fact_id"] not in (fid1, fid2)
+
+
