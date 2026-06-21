@@ -165,7 +165,8 @@ CREATE TABLE IF NOT EXISTS facts (
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     source_doc_id   INTEGER REFERENCES documents(doc_id) ON DELETE SET NULL,
-    hrr_vector      BLOB
+    hrr_vector      BLOB,
+    merged_into     INTEGER REFERENCES facts(fact_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS entities (
@@ -285,10 +286,25 @@ def _migration_v3_document_hash(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migration_v4_merged_into(conn: sqlite3.Connection) -> None:
+    """Add merged_into to facts for soft-deletion/supersession during consolidation."""
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(facts)").fetchall()}
+    if "merged_into" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE facts
+            ADD COLUMN merged_into INTEGER
+                REFERENCES facts(fact_id)
+                ON DELETE SET NULL
+            """
+        )
+
+
 _MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _migration_v1_ensure_hrr_vector,
     _migration_v2_documents,
     _migration_v3_document_hash,
+    _migration_v4_merged_into,
 ]
 
 
@@ -329,6 +345,14 @@ def _detect_schema_version(conn: sqlite3.Connection) -> int:
     # legacy DB the existing `facts` table may still lack columns that the
     # migrations are responsible for adding. Match the newest version only
     # when *both* the facts columns and the documents columns are present.
+    if (
+        "merged_into" in fact_columns
+        and "text_hash" in doc_columns
+        and "source_doc_id" in fact_columns
+        and "hrr_vector" in fact_columns
+        and "documents" in tables
+    ):
+        return 4
     if (
         "text_hash" in doc_columns
         and "source_doc_id" in fact_columns
@@ -822,6 +846,7 @@ class MemoryStore:
                 JOIN facts f ON f.fact_id = facts_fts.rowid
                 WHERE facts_fts MATCH ?
                   AND f.category = ?
+                  AND f.merged_into IS NULL
                 ORDER BY facts_fts.rank
                 LIMIT 100
                 """,
@@ -965,16 +990,16 @@ class MemoryStore:
         with self._lock:
             # 1. Fetch all fact-entity associations
             params: list = []
-            category_clause = ""
+            where_clauses = ["f.merged_into IS NULL"]
             if category is not None:
-                category_clause = "WHERE f.category = ?"
+                where_clauses.append("f.category = ?")
                 params.append(category)
 
             sql = f"""
                 SELECT fe.fact_id, fe.entity_id, f.content, f.category, f.tags, f.trust_score
                 FROM fact_entities fe
                 JOIN facts f ON fe.fact_id = f.fact_id
-                {category_clause}
+                WHERE {" AND ".join(where_clauses)}
             """
             rows = self._conn.execute(sql, params).fetchall()
             if not rows:
@@ -1096,9 +1121,17 @@ class MemoryStore:
             except sqlite3.IntegrityError:
                 # Duplicate content — return existing id
                 row = self._conn.execute(
-                    "SELECT fact_id FROM facts WHERE content = ?", (content,)
+                    "SELECT fact_id, merged_into FROM facts WHERE content = ?", (content,)
                 ).fetchone()
-                return int(row["fact_id"])
+                existing_id = int(row["fact_id"])
+                # If it was soft-deleted, reactivate it!
+                if row["merged_into"] is not None:
+                    self._conn.execute(
+                        "UPDATE facts SET merged_into = NULL, trust_score = ?, updated_at = CURRENT_TIMESTAMP WHERE fact_id = ?",
+                        (initial_trust, existing_id)
+                    )
+                    self._conn.commit()
+                return existing_id
 
             # Entity extraction and linking
             entity_names = self._extract_entities(content)
@@ -1238,6 +1271,7 @@ class MemoryStore:
                 JOIN facts_fts fts ON fts.rowid = f.fact_id
                 WHERE facts_fts MATCH ?
                   AND f.trust_score >= ?
+                  AND f.merged_into IS NULL
                   {category_clause}
                 ORDER BY fts.rank, f.trust_score DESC
                 LIMIT ?
@@ -1361,6 +1395,7 @@ class MemoryStore:
                        retrieval_count, helpful_count, created_at, updated_at
                 FROM facts
                 WHERE trust_score >= ?
+                  AND merged_into IS NULL
                   {category_clause}
                 ORDER BY trust_score DESC
                 LIMIT ?
@@ -1677,7 +1712,7 @@ class MemoryStore:
                         except sqlite3.IntegrityError:
                             # Consolidated content already exists, merge metadata into the existing row
                             row = self._conn.execute(
-                                "SELECT fact_id, trust_score, retrieval_count, helpful_count, tags, source_doc_id "
+                                "SELECT fact_id, trust_score, retrieval_count, helpful_count, tags, source_doc_id, merged_into "
                                 "FROM facts WHERE content = ?",
                                 (consolidated_content,),
                             ).fetchone()
@@ -1694,7 +1729,7 @@ class MemoryStore:
                                 self._conn.execute(
                                     """
                                     UPDATE facts
-                                    SET trust_score = ?, retrieval_count = ?, helpful_count = ?, tags = ?, source_doc_id = ?, updated_at = CURRENT_TIMESTAMP
+                                    SET trust_score = ?, retrieval_count = ?, helpful_count = ?, tags = ?, source_doc_id = ?, merged_into = NULL, updated_at = CURRENT_TIMESTAMP
                                     WHERE fact_id = ?
                                     """,
                                     (
@@ -1717,18 +1752,15 @@ class MemoryStore:
                             self._warn_hrr_capacity(consolidated_content, entity_names)
                             self._compute_hrr_vector(new_fact_id, consolidated_content)
 
-                        # Delete old facts and their links
+                        # Set merged_into for old facts instead of deleting them.
+                        # Preserve entity links in fact_entities.
                         for old_id in input_ids:
-                            # Don't delete if the old id is actually the reused existing_id
+                            # Don't merge if the old id is actually the new_fact_id
                             if old_id == new_fact_id:
                                 continue
                             self._conn.execute(
-                                "DELETE FROM fact_entities WHERE fact_id = ?",
-                                (old_id,),
-                            )
-                            self._conn.execute(
-                                "DELETE FROM facts WHERE fact_id = ?",
-                                (old_id,),
+                                "UPDATE facts SET merged_into = ? WHERE fact_id = ?",
+                                (new_fact_id, old_id),
                             )
                             facts_merged += 1
 
@@ -1923,7 +1955,7 @@ class MemoryStore:
 
             bank_name = f"cat:{category}"
             rows = self._conn.execute(
-                "SELECT hrr_vector FROM facts WHERE category = ? AND hrr_vector IS NOT NULL",
+                "SELECT hrr_vector FROM facts WHERE category = ? AND hrr_vector IS NOT NULL AND merged_into IS NULL",
                 (category,),
             ).fetchall()
 

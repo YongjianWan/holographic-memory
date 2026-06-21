@@ -189,7 +189,7 @@ class FactRetriever:
                 )
 
         # Score against individual fact vectors directly
-        where = "WHERE hrr_vector IS NOT NULL"
+        where = "WHERE hrr_vector IS NOT NULL AND merged_into IS NULL"
         params: list = []
         if category:
             where += " AND category = ?"
@@ -249,7 +249,7 @@ class FactRetriever:
         entity_vec = hrr.encode_atom(entity.lower(), self.hrr_dim)
 
         # Get all facts with vectors
-        where = "WHERE hrr_vector IS NOT NULL"
+        where = "WHERE hrr_vector IS NOT NULL AND merged_into IS NULL"
         params: list = []
         if category:
             where += " AND category = ?"
@@ -328,7 +328,7 @@ class FactRetriever:
             entity_residuals.append(probe_key)
 
         # Get all facts with vectors
-        where = "WHERE hrr_vector IS NOT NULL"
+        where = "WHERE hrr_vector IS NOT NULL AND merged_into IS NULL"
         params: list = []
         if category:
             where += " AND category = ?"
@@ -393,7 +393,7 @@ class FactRetriever:
         conn = self.store._conn
 
         # Get all facts with vectors and their linked entities
-        where = "WHERE f.hrr_vector IS NOT NULL"
+        where = "WHERE f.hrr_vector IS NOT NULL AND f.merged_into IS NULL"
         params: list = []
         if category:
             where += " AND f.category = ?"
@@ -487,7 +487,7 @@ class FactRetriever:
         """Score facts by similarity to a target vector."""
         conn = self.store._conn
 
-        where = "WHERE hrr_vector IS NOT NULL"
+        where = "WHERE hrr_vector IS NOT NULL AND merged_into IS NULL"
         params: list = []
         if category:
             where += " AND category = ?"
@@ -529,7 +529,7 @@ class FactRetriever:
         conn = self.store._conn
 
         params: list = []
-        where_clauses = ["facts_fts MATCH ?", "f.trust_score >= ?"]
+        where_clauses = ["facts_fts MATCH ?", "f.trust_score >= ?", "f.merged_into IS NULL"]
         params.append(query)
         params.append(min_trust)
 
@@ -567,7 +567,7 @@ class FactRetriever:
         """Return Jaccard token-overlap ranking as {fact_id: 1-indexed rank}."""
         conn = self.store._conn
 
-        where = "WHERE trust_score >= ?"
+        where = "WHERE trust_score >= ? AND merged_into IS NULL"
         params: list = [min_trust]
         if category:
             where += " AND category = ?"
@@ -612,7 +612,7 @@ class FactRetriever:
 
         conn = self.store._conn
 
-        where = "WHERE hrr_vector IS NOT NULL AND trust_score >= ?"
+        where = "WHERE hrr_vector IS NOT NULL AND trust_score >= ? AND merged_into IS NULL"
         params: list = [min_trust]
         if category:
             where += " AND category = ?"
@@ -657,7 +657,7 @@ class FactRetriever:
         placeholders = ",".join("?" * len(fact_ids))
         params: list = list(fact_ids)
 
-        where = f"WHERE fact_id IN ({placeholders}) AND trust_score >= ?"
+        where = f"WHERE fact_id IN ({placeholders}) AND trust_score >= ? AND merged_into IS NULL"
         params.append(min_trust)
 
         if category:

@@ -119,9 +119,21 @@ class TestConsolidationTransaction:
         assert new_fact["tags"] == "dev, promo, work"
         assert new_fact["source_doc_id"] == doc_id
 
-        # Verify old facts are deleted
-        rows = store._conn.execute("SELECT COUNT(*) FROM facts WHERE fact_id IN (?, ?)", (fid1, fid2)).fetchone()[0]
-        assert rows == 0
+        # Verify old facts are soft-deleted/superseded instead of physically deleted
+        old_facts = store._conn.execute("SELECT fact_id, merged_into FROM facts WHERE fact_id IN (?, ?)", (fid1, fid2)).fetchall()
+        assert len(old_facts) == 2
+        for f in old_facts:
+            assert f["merged_into"] == new_fact["fact_id"]
+
+        # Verify entity links in fact_entities are preserved
+        old_links = store._conn.execute("SELECT COUNT(*) FROM fact_entities WHERE fact_id IN (?, ?)", (fid1, fid2)).fetchone()[0]
+        assert old_links > 0
+
+        # Verify old facts are not returned by list_facts or search_facts
+        listed = store.list_facts(category="project")
+        listed_ids = {lf["fact_id"] for lf in listed}
+        assert fid1 not in listed_ids
+        assert fid2 not in listed_ids
 
     def test_consolidate_facts_integrity_error_collision(self, store: MemoryStore) -> None:
         # Disable write-time duplicate detection so that very similar facts are not merged at write time
@@ -140,13 +152,48 @@ class TestConsolidationTransaction:
             })
 
         report = store.consolidate_facts(model_call=mock_model, category="project")
-        # fid1 and fid2 are deleted (merged = 2), but no new row is created (created = 0)
+        # fid1 and fid2 are soft-deleted (merged = 2), but no new row is created (created = 0)
         # because "Mia is a Senior Dev" already existed. Instead, its metadata was updated.
         assert report["facts_merged"] == 2
         assert report["facts_created"] == 0
 
         # Check pre-existing fact has inherited metadata
         existing_fact = store._conn.execute(
-            "SELECT fact_id, trust_score FROM facts WHERE fact_id = ?", (fid3,)
+            "SELECT fact_id, trust_score, merged_into FROM facts WHERE fact_id = ?", (fid3,)
         ).fetchone()
         assert existing_fact["trust_score"] == 0.7  # max(0.7, 0.5, old_value=0.6)
+        assert existing_fact["merged_into"] is None  # Remains active
+
+        # Verify old facts have merged_into pointing to fid3
+        old_facts = store._conn.execute("SELECT fact_id, merged_into FROM facts WHERE fact_id IN (?, ?)", (fid1, fid2)).fetchall()
+        assert len(old_facts) == 2
+        for f in old_facts:
+            assert f["merged_into"] == fid3
+
+    def test_reactivate_soft_deleted_fact(self, store: MemoryStore) -> None:
+        # Add a fact
+        fid = store.add_fact('"Mia" is a Senior Dev', category="project", trust=0.6)
+
+        # Add a dummy fact to point merged_into to, to satisfy foreign key constraint
+        dummy_id = store.add_fact('"Mia" is a Principal Dev', category="project", trust=0.7)
+
+        # Soft delete it manually by pointing merged_into to dummy_id
+        store._conn.execute("UPDATE facts SET merged_into = ? WHERE fact_id = ?", (dummy_id, fid))
+        store._conn.commit()
+
+
+        # Verify it is no longer listed
+        assert fid not in {f["fact_id"] for f in store.list_facts(category="project")}
+
+        # Add the exact same fact again
+        new_fid = store.add_fact('"Mia" is a Senior Dev', category="project", trust=0.8)
+        assert new_fid == fid
+
+        # Verify it is reactivated (merged_into is NULL)
+        row = store._conn.execute("SELECT merged_into, trust_score FROM facts WHERE fact_id = ?", (fid,)).fetchone()
+        assert row["merged_into"] is None
+        assert row["trust_score"] == 0.8
+
+        # Verify it is listed again
+        assert fid in {f["fact_id"] for f in store.list_facts(category="project")}
+
