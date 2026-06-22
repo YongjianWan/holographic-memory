@@ -1076,13 +1076,17 @@ class MemoryStore:
     def _find_consolidation_candidates(
         self,
         category: str | None = None,
-        generic_threshold: int = 15,
+        generic_threshold: int | None = None,
         max_cluster_size: int = 6,
     ) -> list[list[dict]]:
         """Find clusters of facts that share entities and are candidates for consolidation.
 
         Excludes high-frequency generic entities from generating single-entity matches
         unless the facts share at least 2 entities total.
+
+        When ``generic_threshold`` is None, it is computed adaptively as
+        ``max(3, min(15, active_facts // 5))`` so small memory stores are not
+        dominated by a few moderately frequent terms.
         """
         with self._lock:
             # 1. Fetch all fact-entity associations
@@ -1122,8 +1126,11 @@ class MemoryStore:
                     }
 
             # Identify generic entities
+            if generic_threshold is None:
+                active_facts = len(fact_data)
+                generic_threshold = max(3, min(15, active_facts // 5))
             generic_entities = {
-                eid for eid, fids in entity_to_facts.items() if len(fids) > generic_threshold
+                eid for eid, fids in entity_to_facts.items() if len(fids) >= generic_threshold
             }
 
             # 3. Find candidate pairs based on co-occurrence rules
@@ -1714,7 +1721,7 @@ class MemoryStore:
         self,
         model_call: Callable[[str], str],
         category: str | None = None,
-        generic_threshold: int = 15,
+        generic_threshold: int | None = None,
         max_cluster_size: int = 6,
         clusters: list[list[dict]] | None = None,
     ) -> dict:

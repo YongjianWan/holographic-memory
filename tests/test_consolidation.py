@@ -33,12 +33,12 @@ class TestCandidateGrouping:
         fid2 = store.add_fact('"Aiden" works on "Django"', category="project")
         fid3 = store.add_fact('"Aiden" is a coder', category="project")
 
-        # Aiden is linked to 3 facts. If generic_threshold = 2, Aiden is generic.
+        # Aiden is linked to 3 facts. If generic_threshold = 3, Aiden is generic.
         # Check candidates. There should be NO candidates since they only share generic "Aiden"
         # and none of them share non-generic entities or >= 2 entities.
         clusters = store._find_consolidation_candidates(
             category="project",
-            generic_threshold=2,
+            generic_threshold=3,
             max_cluster_size=6,
         )
         assert not clusters
@@ -48,13 +48,34 @@ class TestCandidateGrouping:
         # fid1 and fid4 share non-generic "Quantum" (which is linked to 2 facts: fid1, fid4)
         clusters = store._find_consolidation_candidates(
             category="project",
-            generic_threshold=2,
+            generic_threshold=3,
             max_cluster_size=6,
         )
         assert len(clusters) == 1
         cluster_fids = {f["fact_id"] for f in clusters[0]}
         assert fid1 in cluster_fids
         assert fid4 in cluster_fids
+
+    def test_adaptive_generic_threshold_for_small_stores(self, store: MemoryStore) -> None:
+        # With 6 active facts, adaptive threshold = max(3, min(15, 6 // 5)) = 3.
+        # "API" appears in 3 facts, so it should be treated as generic and not
+        # create candidates on its own.
+        store.add_fact('"API" is used by service A', category="project")
+        store.add_fact('"API" is used by service B', category="project")
+        store.add_fact('"API" is used by service C', category="project")
+        store.add_fact('"Redis" caches data', category="project")
+        store.add_fact('"Postgres" stores data', category="project")
+        store.add_fact('"Vue" renders UI', category="project")
+
+        clusters = store._find_consolidation_candidates(category="project")
+        assert not clusters
+
+        # Adding a non-generic shared entity creates a real candidate.
+        store.add_fact('"Redis" is used by service A', category="project")
+        clusters = store._find_consolidation_candidates(category="project")
+        assert len(clusters) == 1
+        cluster_fids = {f["fact_id"] for f in clusters[0]}
+        assert any("Redis" in f["content"] for f in clusters[0])
 
 
 class TestLLMConsolidator:
@@ -101,7 +122,7 @@ class TestConsolidationTransaction:
             })
 
         # Run consolidation (Mia is non-generic, threshold=15)
-        report = store.consolidate_facts(model_call=mock_model, category="project")
+        report = store.consolidate_facts(model_call=mock_model, category="project", generic_threshold=15)
         assert report["facts_merged"] == 2
         assert report["facts_created"] == 1
 
@@ -151,7 +172,7 @@ class TestConsolidationTransaction:
                 ]
             })
 
-        report = store.consolidate_facts(model_call=mock_model, category="project")
+        report = store.consolidate_facts(model_call=mock_model, category="project", generic_threshold=15)
         # fid1 and fid2 are soft-deleted (merged = 2), but no new row is created (created = 0)
         # because "Mia is a Senior Dev" already existed. Instead, its metadata was updated.
         assert report["facts_merged"] == 2
@@ -220,7 +241,7 @@ class TestConsolidationTransaction:
                 ]
             })
 
-        report = store.consolidate_facts(model_call=mock_model, category="project")
+        report = store.consolidate_facts(model_call=mock_model, category="project", generic_threshold=15)
         assert report["facts_merged"] == 2
         assert report["facts_created"] == 1
 
