@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Decision record**: P2 shared-entity graph edges vetoed after real-data measurement. On 380 active facts, entity avg fan-out was 0.811, 94% of entities hung on a single fact, and only 29 fact pairs shared any entity. Recorded in [ROADMAP.md](ROADMAP.md) with restart conditions.
 - Lazy process-internal garbage collector (`memory_gc.py`) with `gc_log` table (migration v7). Runs trust-decay GC at `initialize()` and `on_session_end()`; hermes-away intervals are backfilled by the timestamp check on startup.
 - Trust decay: `trust_score` is multiplied by a recency factor `clamp(1 - days/365, 0.1, 1.0)` based on `updated_at` (or `created_at`) for all active facts during GC.
 - New plugin config keys: `gc_interval_days`, `gc_decay_max_days`, `gc_decay_floor`.

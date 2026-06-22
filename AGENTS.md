@@ -111,7 +111,7 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 | 文档入口 `retain_document`（§3.5）                 | ✅ 已实现         | `store.py` / `extractors.py` / `__init__.py` |
 | `facts.merged_into` 软删除 & 语义合并（P1-2）       | ✅ 已实现         | `consolidation.py` / `store.py` / `retrieval.py` |
 | 惰性 GC / trust 衰减（P1）                            | ✅ 已实现         | `memory_gc.py` / `store.py` / `__init__.py` |
-| `fact_edges` 图边 + CTE 多跳（P2）                  | ❌ 未实现         | 待新增                          |
+| `fact_edges` 图边 + CTE 多跳（P2）                  | ❌ 已否决         | 见 [ROADMAP.md](ROADMAP.md)：380 条真实数据实测 fan-out 0.811 / shared pairs 29 对，不满足建图条件 |
 
 ## 4. 开发约定
 

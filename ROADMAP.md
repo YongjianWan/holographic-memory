@@ -9,7 +9,7 @@
 两条主线：
 
 - **A. 检索质量（RQ）**：RRF 已落地，HRR 路正在真实库上评估是否保留。
-- **B. 库卫生（P0/P1/P2）**：P0 写入探重、P1-1 entity 归一化、documents 表已落地；P1 自动 GC 壳与 P2 图边尚未启动。
+- **B. 库卫生（P0/P1）**：P0 写入探重、P1-1 entity 归一化、documents 表已落地；P1 自动 GC 壳与 trust 衰减已落地。P2 图边已用真实数据否决。
 
 ## 优先级队列
 
@@ -31,15 +31,19 @@
 4. **P1-4：跨话题串联（反思）**
    - 三条硬约束：产物喂回 recall、不独立常驻、必须指向具体源 fact。
 
-5. **P2：shared-entity 边 + CTE 多跳**
-   - 依赖 P0/P1 库干净；先做无类型 `related` 边，`tanh(shared × 0.5)` 压高频实体 fan-out。
+5. **❌ P2：shared-entity 边 + CTE 多跳 —— 已否决**
+   - 否决依据：380 条真实 facts 实测，entity avg fan-out 仅 0.811；94% 的 entity 只挂在一条 fact 上；共享至少一个 entity 的 fact pairs 仅 29 对。`tanh(shared × 0.5)` 在此分布上空转，建图无意义。
+   - 重启条件：未来真实数据下 avg fan-out 回升到 1.5 以上，或共享 entity 的 fact pairs 数量级显著增加，再重测。
+   - 后续影响：taxonomy（file:/tech:/user: 等前缀体系）下游于图层决策，P2 否决则 taxonomy 一并搁置。
 
-6. **P2.5：LLM 有类型边**
-   - 仅在出现真实查询必须靠 supports/contradicts 等类型关系才能答时才做。
+6. **按子项目细分 `category`**
+   - 投促局系统、公文写作系统、日常工作/会议等本就不该共用一个 `project` category。
+   - 目的不是修 SNR，是数据组织正确；顺带缓解 `project` category bank 当前 370+ facts 的 SNR 压力。
 
 ## 已知限制
 
 - **entity 版本后缀混淆**：`_numeric_signature` 对 "GPT-4" / "GPT-4o" 都抽出 `{4}`，存在误合并风险。观察真实数据后再决定是否加后缀语义守门。
+- **fanout 下降归因未验**：灌入 351 条真实文档后，entity avg fan-out 从 1.22 降至 0.811。可能原因一是 entity 抽取噪声（长句/SQL 关键字被误抽），二是文档本身主题分散、低 entity 重叠。当前未分证，暂不调整 entity 抽取规则，避免过拟合。
 - **跨 category 写入探重盲区**：`add_fact` 只在同 category 内探重，跨 category 重复留给 P1 批 GC 全局收敛。
 - **工具面 retain 默认无 LLM**：`fact_store(action='retain')` 只能走本地 fallback，需通过环境变量/配置注入 LLM client。
 - **HRR 容量只报警不拆分**：超长 fact 仅触发 warning，未自动分拆。
