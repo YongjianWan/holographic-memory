@@ -21,6 +21,30 @@ sys.path.insert(0, PROJECT_ROOT)
 from store import MemoryStore
 
 
+def _resolve_model_call():
+    """Resolve a model_call callable from environment variables."""
+    import os
+    ds_key = os.environ.get("DEEPSEEK_API_KEY")
+    if ds_key:
+        try:
+            from openai import OpenAI
+            base_url = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+            model = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash")
+            client = OpenAI(api_key=ds_key, base_url=base_url)
+            def model_call(prompt: str) -> str:
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0,
+                    stream=False,
+                )
+                return resp.choices[0].message.content or ""
+            return model_call
+        except Exception as e:
+            print(f"WARNING: failed to initialize DeepSeek client: {e}")
+    return None
+
+
 def resolve_db() -> pathlib.Path:
     hermes_home = os.environ.get("HERMES_HOME") or str(
         pathlib.Path.home() / "AppData" / "Local" / "hermes"
@@ -57,8 +81,6 @@ def run_consolidation(
     category: str | None,
     max_cluster_size: int = 6,
 ):
-    from __init__ import _resolve_model_call
-
     model_call = _resolve_model_call()
     if not model_call:
         print("ERROR: DEEPSEEK_API_KEY or OPENAI_API_KEY not found in environment.")
@@ -130,9 +152,15 @@ def main():
         default=6,
         help="Max facts per cluster passed to LLM (default 6).",
     )
+    parser.add_argument(
+        "--db",
+        type=pathlib.Path,
+        default=None,
+        help="Path to SQLite database (default: HERMES_HOME/memory_store.db).",
+    )
     args = parser.parse_args()
 
-    db_path = resolve_db()
+    db_path = args.db or resolve_db()
     if not db_path.exists():
         print(f"ERROR: database not found at {db_path}")
         sys.exit(1)

@@ -6,9 +6,9 @@
 
 ## 当前焦点
 
-- v6 migration 落地：FTS5 rebuild 覆盖全部 facts（包括 soft-delete），修复 v5 active-only  bug。
-- HRR 质量审计：在真实库（29 facts）上跑 3-way vs 2-way RRF，15/15 查询发散，中位重合度 0.40；多数 "HRR 注入项" 为噪音。
-- 文档整理：新建 ROADMAP.md / docs/README.md，精简 AGENTS.md（移除嵌入式 SOUL 与未来路线），重置 SESSION.md。
+- P1-2 语义合并安全验证：
+  - **A（临时库）**：用 3 个桌面 .md 文件灌出 159-fact 临时库，发现 1 个候选簇；执行合并后 2 facts 被软删、1 个新 fact 生成；回滚（`merged_into=NULL`）后原 facts 重新可见。合并与回滚机制通过。
+  - **B（真实库）**：29-fact 真实库无自然近重复，强制合并 `25,26,27` 被 LLM 守卫拒绝（`facts_merged=0`），说明当前策略不会随便软删记忆。
 
 ## 进行中
 
@@ -16,17 +16,20 @@
 
 ## 本轮待办
 
-- 完成文档整理并 commit。
-- 同步到 hermes 实时目录。
+- [x] 完成文档整理并 commit。
+- [x] 同步到 hermes 实时目录。
+- [x] 跑 P1-2 A+B 安全验证。
+- [ ] 决定是否给 `run_consolidation_trial.py` 增加 `--db` 参数并 commit 该改进。
 
 ## 已知陷阱（临时）
 
-- 无。
+- `run_consolidation_trial.py` 原先用 `from __init__ import _resolve_model_call`，作为脚本运行时会因相对导入失败。已本地修复为内联 `_resolve_model_call`，尚未 commit。
 
 ## 决策记录
 
 - HRR 暂时不改动：审计结论是噪音占多数，但用户决定先保留，后续再决策。
+- P1-2 当前策略不会误合并：真实库强制合并实验被 LLM 守卫拒绝；临时库自然近重复合并可正常回滚。
 
 ---
 
-*Last updated: 2026-06-21*
+*Last updated: 2026-06-22*
