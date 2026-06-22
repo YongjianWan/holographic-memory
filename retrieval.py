@@ -30,6 +30,10 @@ _RRF_K = 60
 # Use a fixed floor so small-limit queries still get a meaningful overlap pool.
 _CANDIDATE_POOL = 100
 
+# Guard against scanning huge HRR tables in compositional queries.
+# Above this many candidate facts we truncate to the most recently updated.
+_MAX_HRR_SCAN_FACTS = 1000
+
 
 class FactRetriever:
     """Multi-strategy fact retrieval with RRF fusion and trust-weighted scoring."""
@@ -116,6 +120,70 @@ class FactRetriever:
             fact.pop("hrr_vector", None)
         return results
 
+    # ------------------------------------------------------------------
+    # HRR candidate helpers (avoid full-table scans)
+    # ------------------------------------------------------------------
+
+    def _resolve_entity_fact_ids(self, entity_name: str) -> set[int] | None:
+        """Return fact IDs linked to an entity by canonical name or alias.
+
+        Returns None if the entity is not known.
+        """
+        entity_id = self.store._resolve_entity_id(entity_name)
+        if entity_id is None:
+            return None
+        rows = self.store._conn.execute(
+            "SELECT fact_id FROM fact_entities WHERE entity_id = ?", (entity_id,)
+        ).fetchall()
+        return {r["fact_id"] for r in rows}
+
+    def _fetch_hrr_candidates(
+        self,
+        fact_ids: set[int] | None,
+        category: str | None = None,
+    ) -> list:
+        """Fetch facts with HRR vectors, optionally restricted to a fact-id set.
+
+        Applies a hard ceiling to keep compositional queries responsive on
+        large stores.  If the candidate set exceeds the ceiling, the most
+        recently updated facts are kept and a warning is logged.
+        """
+        conn = self.store._conn
+        where = "WHERE hrr_vector IS NOT NULL AND merged_into IS NULL"
+        params: list = []
+        if category:
+            where += " AND category = ?"
+            params.append(category)
+        if fact_ids is not None:
+            if not fact_ids:
+                return []
+            placeholders = ",".join("?" * len(fact_ids))
+            where += f" AND fact_id IN ({placeholders})"
+            params.extend(fact_ids)
+
+        rows = conn.execute(
+            f"""
+            SELECT fact_id, content, category, tags, trust_score,
+                   retrieval_count, helpful_count, created_at, updated_at,
+                   hrr_vector
+            FROM facts
+            {where}
+            """,
+            params,
+        ).fetchall()
+
+        if len(rows) > _MAX_HRR_SCAN_FACTS:
+            logger.warning(
+                "HRR scan candidate set (%d) exceeds %d; truncating to most recent",
+                len(rows),
+                _MAX_HRR_SCAN_FACTS,
+            )
+            rows = sorted(
+                rows, key=lambda r: r["updated_at"] or r["created_at"], reverse=True
+            )[:_MAX_HRR_SCAN_FACTS]
+
+        return rows
+
     def probe(
         self,
         entity: str,
@@ -136,12 +204,17 @@ class FactRetriever:
 
         conn = self.store._conn
 
+        # Pre-filter: only score facts explicitly linked to this entity.
+        entity_fact_ids = self._resolve_entity_fact_ids(entity)
+        if not entity_fact_ids:
+            return self.search(entity, category=category, limit=limit)
+
         # Encode entity as role-bound vector
         role_entity = hrr.encode_atom("__hrr_role_entity__", self.hrr_dim)
         entity_vec = hrr.encode_atom(entity.lower(), self.hrr_dim)
         probe_key = hrr.bind(entity_vec, role_entity)
 
-        # Try category-specific bank first, then all facts
+        # Try category-specific bank first, then linked facts directly
         if category:
             bank_name = f"cat:{category}"
             bank_row = conn.execute(
@@ -151,31 +224,12 @@ class FactRetriever:
             if bank_row:
                 bank_vec = hrr.bytes_to_phases(bank_row["vector"])
                 extracted = hrr.unbind(bank_vec, probe_key)
-                # Use extracted signal to score individual facts
                 return self._score_facts_by_vector(
-                    extracted, category=category, limit=limit
+                    extracted, category=category, limit=limit, fact_ids=entity_fact_ids
                 )
 
-        # Score against individual fact vectors directly
-        where = "WHERE hrr_vector IS NOT NULL AND merged_into IS NULL"
-        params: list = []
-        if category:
-            where += " AND category = ?"
-            params.append(category)
-
-        rows = conn.execute(
-            f"""
-            SELECT fact_id, content, category, tags, trust_score,
-                   retrieval_count, helpful_count, created_at, updated_at,
-                   hrr_vector
-            FROM facts
-            {where}
-            """,
-            params,
-        ).fetchall()
-
+        rows = self._fetch_hrr_candidates(entity_fact_ids, category=category)
         if not rows:
-            # Final fallback: keyword search
             return self.search(entity, category=category, limit=limit)
 
         scored = []
@@ -211,29 +265,15 @@ class FactRetriever:
         if not hrr._HAS_NUMPY:
             return self.search(entity, category=category, limit=limit)
 
-        conn = self.store._conn
+        # Pre-filter: only score facts explicitly linked to this entity.
+        entity_fact_ids = self._resolve_entity_fact_ids(entity)
+        if not entity_fact_ids:
+            return self.search(entity, category=category, limit=limit)
 
         # Encode entity as a bare atom (not role-bound — we want ANY structural match)
         entity_vec = hrr.encode_atom(entity.lower(), self.hrr_dim)
 
-        # Get all facts with vectors
-        where = "WHERE hrr_vector IS NOT NULL AND merged_into IS NULL"
-        params: list = []
-        if category:
-            where += " AND category = ?"
-            params.append(category)
-
-        rows = conn.execute(
-            f"""
-            SELECT fact_id, content, category, tags, trust_score,
-                   retrieval_count, helpful_count, created_at, updated_at,
-                   hrr_vector
-            FROM facts
-            {where}
-            """,
-            params,
-        ).fetchall()
-
+        rows = self._fetch_hrr_candidates(entity_fact_ids, category=category)
         if not rows:
             return self.search(entity, category=category, limit=limit)
 
@@ -284,8 +324,25 @@ class FactRetriever:
             query = " ".join(entities)
             return self.search(query, category=category, limit=limit)
 
-        conn = self.store._conn
         role_entity = hrr.encode_atom("__hrr_role_entity__", self.hrr_dim)
+
+        # Pre-filter: only score facts linked to the query entities.
+        entity_fact_sets: list[set[int]] = []
+        for entity in entities:
+            fact_ids = self._resolve_entity_fact_ids(entity)
+            if fact_ids is None:
+                # Unknown entity -> fall back to keyword search.
+                query = " ".join(entities)
+                return self.search(query, category=category, limit=limit)
+            entity_fact_sets.append(fact_ids)
+
+        # Prefer facts linked to ALL entities; fall back to union if empty.
+        candidate_ids = set.intersection(*entity_fact_sets)
+        if not candidate_ids:
+            candidate_ids = set.union(*entity_fact_sets)
+        if not candidate_ids:
+            query = " ".join(entities)
+            return self.search(query, category=category, limit=limit)
 
         # For each entity, compute what the bank "remembers" about it
         # by unbinding entity+role from each fact vector
@@ -295,24 +352,7 @@ class FactRetriever:
             probe_key = hrr.bind(entity_vec, role_entity)
             entity_residuals.append(probe_key)
 
-        # Get all facts with vectors
-        where = "WHERE hrr_vector IS NOT NULL AND merged_into IS NULL"
-        params: list = []
-        if category:
-            where += " AND category = ?"
-            params.append(category)
-
-        rows = conn.execute(
-            f"""
-            SELECT fact_id, content, category, tags, trust_score,
-                   retrieval_count, helpful_count, created_at, updated_at,
-                   hrr_vector
-            FROM facts
-            {where}
-            """,
-            params,
-        ).fetchall()
-
+        rows = self._fetch_hrr_candidates(candidate_ids, category=category)
         if not rows:
             query = " ".join(entities)
             return self.search(query, category=category, limit=limit)
@@ -451,26 +491,14 @@ class FactRetriever:
         target_vec: "np.ndarray",
         category: str | None = None,
         limit: int = 10,
+        fact_ids: set[int] | None = None,
     ) -> list[dict]:
-        """Score facts by similarity to a target vector."""
-        conn = self.store._conn
+        """Score facts by similarity to a target vector.
 
-        where = "WHERE hrr_vector IS NOT NULL AND merged_into IS NULL"
-        params: list = []
-        if category:
-            where += " AND category = ?"
-            params.append(category)
-
-        rows = conn.execute(
-            f"""
-            SELECT fact_id, content, category, tags, trust_score,
-                   retrieval_count, helpful_count, created_at, updated_at,
-                   hrr_vector
-            FROM facts
-            {where}
-            """,
-            params,
-        ).fetchall()
+        If ``fact_ids`` is provided, only facts in that set are considered,
+        avoiding a full-table scan.
+        """
+        rows = self._fetch_hrr_candidates(fact_ids, category=category)
 
         scored = []
         for row in rows:

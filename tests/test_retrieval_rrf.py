@@ -94,6 +94,49 @@ class TestRRFSearch:
         assert "language" in results[0]["content"]
 
 
+class TestEntityPrefilteredQueries:
+    """probe/related/reason should pre-filter by linked entities to avoid full scans."""
+
+    def test_probe_only_returns_linked_facts(self, retriever: FactRetriever) -> None:
+        # Quoted terms become linked entities.
+        retriever.store.add_fact('"Python" is a programming language', category='project')
+        retriever.store.add_fact('"Coffee" is a morning drink', category='project')
+
+        results = retriever.probe('Python', category='project')
+        contents = {r['content'] for r in results}
+        assert any('Python' in c for c in contents)
+        assert all('Coffee' not in c for c in contents)
+
+    def test_related_only_returns_linked_facts(self, retriever: FactRetriever) -> None:
+        retriever.store.add_fact('"Python" is a programming language', category='project')
+        retriever.store.add_fact('"Coffee" is a morning drink', category='project')
+
+        results = retriever.related('Python', category='project')
+        contents = {r['content'] for r in results}
+        assert any('Python' in c for c in contents)
+        assert all('Coffee' not in c for c in contents)
+
+    def test_reason_prefers_facts_linked_to_all_entities(
+        self, retriever: FactRetriever
+    ) -> None:
+        retriever.store.add_fact('"Python" and "Java" are languages', category='project')
+        retriever.store.add_fact('"Python" is great', category='project')
+        retriever.store.add_fact('"Java" runs everywhere', category='project')
+
+        results = retriever.reason(['Python', 'Java'], category='project')
+        assert results
+        # The fact linked to both entities should rank first.
+        assert '"Python" and "Java" are languages' in results[0]['content']
+
+    def test_probe_unknown_entity_falls_back_to_search(
+        self, retriever: FactRetriever
+    ) -> None:
+        retriever.store.add_fact('"Python" is a programming language', category='project')
+
+        # Unknown entity falls back to RRF search without raising.
+        results = retriever.probe('Rust', category='project')
+        assert isinstance(results, list)
+
 
 class TestRRFInternals:
     def test_ftsr_ranking_returns_one_indexed_ranks(

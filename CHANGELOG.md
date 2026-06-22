@@ -47,6 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Split `store.py` into `entities.py` (extraction/resolution/name matching) and `consolidation.py` (candidate discovery and LLM-driven merging). `store.py` now holds storage orchestration and thin forwarding methods.
+- Added missing `Callable` import in `__init__.py` (used by `_resolve_model_call` annotation).
+- `_load_plugin_config` and `save_config` no longer swallow exceptions silently; they now log warnings/errors.
+- `FactRetriever.probe`, `related`, and `reason` no longer perform full-table HRR scans. They pre-filter candidates by linked entities and cap the scan size at 1000 facts with a warning.
 - `HolographicMemoryProvider.shutdown` now explicitly calls `store.close()` before dropping the reference.
 - `MemoryStore.close()` now executes `PRAGMA wal_checkpoint(FULL)` before closing.
 - `_resolve_entity` alias lookup now escapes SQLite `LIKE` wildcards so "K2_7" no longer matches "K2.7".

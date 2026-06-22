@@ -1,7 +1,7 @@
 # AGENTS.md — Holographic Memory Provider
 
 > 本文件供 AI 编码助手使用。如果你要修改代码，请先读这里。
-> 人格与工程纪律见 [SOUL.md](SOUL.md)；未来路线见 [ROADMAP.md](ROADMAP.md)；历史变更见 [CHANGELOG.md](CHANGELOG.md)。
+> 工程纪律见 [SOUL.md](SOUL.md)；未来路线见 [ROADMAP.md](ROADMAP.md)；历史变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 快速开始
 
@@ -12,15 +12,18 @@ hermes config set memory.provider holographic
 ```
 
 工具：
+
 - `fact_store` — 10 actions: add, retain, search, probe, related, reason, contradict, update, remove, list, normalize, consolidate.
 - `fact_feedback` — helpful/unhelpful，非对称调整 trust。
 
 跑测试：
+
 ```bash
 pytest tests/
 ```
 
 eval 脚本（需 `DEEPSEEK_API_KEY`，结果输出到 `reports/`）：
+
 ```bash
 source .env
 python batch_retain_eval.py --llm deepseek
@@ -32,6 +35,7 @@ python corpus_audit.py --llm deepseek
 Holographic Memory 是 hermes-agent 的一个 **MemoryProvider 插件**：用本地 SQLite 做事实存储，结合 FTS5 全文检索、HRR（Holographic Reduced Representations，纯数学向量）和 trust 评分，实现可组合查询（probe / reason / related / contradict）。
 
 核心红线：
+
 - **无常驻进程、无外部依赖**：不加 Postgres / Redis / embedding 服务 / cron worker。
 - **关机即文件、开机即用**：数据在 SQLite 文件里，启动无初始化序列。
 - **记忆数据不可再生**：任何 schema 变更必须走 migration，**禁止 DROP + CREATE**。
@@ -61,10 +65,12 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 ```
 
 **开发流程**：
+
 1. 在当前工作目录改代码、跑测试、做版本控制。
 2. 改动稳定后，再复制/同步到 AppData 下的实时目录，供 hermes 实际加载。
 3. 不要把实时目录里的 `.db` 文件或 `__pycache__` 拖进本仓库。
 4. **任何 API key / 令牌只能走环境变量**
+
 ---
 
 ## 人格与工程纪律
@@ -79,26 +85,28 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 - 验证门禁 5 步：命令 → 运行 → 读输出/退出码 → 验证支持结论 → 宣称完成。
 - 每轮结束前 `git status --short`；Commit 说清改了啥，一次别改太多不相关东西。
 - 可逆/影响局限当前任务 → 干就完了；不可逆/影响外溢 → 先说清楚等确认。
+- 代码不仅要写注释而且写是什么，也写为什么。保证代码可读性。
+
 ## 3. 当前架构现状（读源码后确认）
 
-| 能力 | 状态 | 位置 |
-|---|---|---|
-| SQLite + WAL fallback | ✅ 已有 | `store.py` |
-| `facts` / `entities` / `fact_entities` 二部图 | ✅ 已有 | `store.py` |
-| FTS5 全文索引 + 触发器同步 | ✅ 已有 | `store.py` |
-| HRR 向量（1024d，确定性 SHA-256 atoms） | ✅ 已有 | `holographic.py` |
-| trust 非对称反馈（+0.05 / -0.10） | ✅ 已有 | `store.py` |
-| `probe` / `related` / `reason` / `contradict` | ✅ 已有 | `retrieval.py` |
-| RRF 三路融合（RQ） | ✅ 已实现 | `retrieval.py` |
-| entity 归一化（P1-1） | ✅ 已实现 | `store.py` |
-| 近重复检测（P0） | ✅ 已实现 | `store.py` |
-| migration 框架 + `schema_version` | ✅ 已实现 (v1-v6) | `store.py` |
-| `documents` 表 + `facts.source_doc_id` | ✅ 已实现 | `store.py` |
-| `documents.text_hash` 去重 | ✅ 已实现 | `store.py` |
-| 文档入口 `retain_document`（§3.5） | ✅ 已实现 | `store.py` / `__init__.py` |
-| `facts.merged_into` 软删除 & 语义合并（P1-2） | ✅ 已实现 | `store.py` / `retrieval.py` |
-| 惰性 GC / trust 衰减（P1） | ❌ 未实现 | 待写入 `__init__.py` / 新模块 |
-| `fact_edges` 图边 + CTE 多跳（P2） | ❌ 未实现 | 待新增 |
+| 能力                                                  | 状态              | 位置                            |
+| ----------------------------------------------------- | ----------------- | ------------------------------- |
+| SQLite + WAL fallback                                 | ✅ 已有           | `store.py`                    |
+| `facts` / `entities` / `fact_entities` 二部图   | ✅ 已有           | `store.py`                    |
+| FTS5 全文索引 + 触发器同步                            | ✅ 已有           | `store.py`                    |
+| HRR 向量（1024d，确定性 SHA-256 atoms）               | ✅ 已有           | `holographic.py`              |
+| trust 非对称反馈（+0.05 / -0.10）                     | ✅ 已有           | `store.py`                    |
+| `probe` / `related` / `reason` / `contradict` | ✅ 已有           | `retrieval.py`                |
+| RRF 三路融合（RQ）                                    | ✅ 已实现         | `retrieval.py`                |
+| entity 归一化（P1-1）                                 | ✅ 已实现         | `entities.py` / `store.py`    |
+| 近重复检测（P0）                                      | ✅ 已实现         | `store.py`                    |
+| migration 框架 +`schema_version`                    | ✅ 已实现 (v1-v6) | `store.py`                    |
+| `documents` 表 + `facts.source_doc_id`            | ✅ 已实现         | `store.py`                    |
+| `documents.text_hash` 去重                          | ✅ 已实现         | `store.py`                    |
+| 文档入口 `retain_document`（§3.5）                 | ✅ 已实现         | `store.py` / `__init__.py`  |
+| `facts.merged_into` 软删除 & 语义合并（P1-2）       | ✅ 已实现         | `consolidation.py` / `store.py` / `retrieval.py` |
+| 惰性 GC / trust 衰减（P1）                            | ❌ 未实现         | 待写入 `__init__.py` / 新模块 |
+| `fact_edges` 图边 + CTE 多跳（P2）                  | ❌ 未实现         | 待新增                          |
 
 ## 4. 开发约定
 

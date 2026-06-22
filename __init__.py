@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from typing import Any, Dict, List
 
 from agent.memory_provider import MemoryProvider
@@ -108,7 +109,8 @@ def _load_plugin_config() -> dict:
         with open(config_path, encoding="utf-8-sig") as f:
             all_config = yaml.safe_load(f) or {}
         return cfg_get(all_config, "plugins", "hermes-memory-store", default={}) or {}
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to load holographic plugin config: %s", e)
         return {}
 
 
@@ -130,8 +132,8 @@ def _resolve_model_call() -> Callable[[str], str] | None:
                 )
                 return resp.choices[0].message.content or ""
             return model_call
-        except Exception:
-            pass
+        except Exception as e:
+            logger.exception("Failed to initialize DeepSeek model call: %s", e)
 
     oa_key = os.environ.get("OPENAI_API_KEY")
     if oa_key:
@@ -148,8 +150,8 @@ def _resolve_model_call() -> Callable[[str], str] | None:
                 )
                 return resp.choices[0].message.content or ""
             return model_call
-        except Exception:
-            pass
+        except Exception as e:
+            logger.exception("Failed to initialize OpenAI model call: %s", e)
 
     return None
 
@@ -188,8 +190,8 @@ class HolographicMemoryProvider(MemoryProvider):
             existing["plugins"]["hermes-memory-store"] = values
             with open(config_path, "w", encoding="utf-8") as f:
                 yaml.dump(existing, f, default_flow_style=False)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.exception("Failed to save holographic plugin config to %s: %s", config_path, e)
 
     def get_config_schema(self):
         from hermes_constants import display_hermes_home
