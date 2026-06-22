@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Lazy process-internal garbage collector (`gc.py`) with `gc_log` table (migration v7). Runs trust-decay GC at `initialize()` and `on_session_end()`; hermes-away intervals are backfilled by the timestamp check on startup.
+- Trust decay: `trust_score` is multiplied by a recency factor `clamp(1 - days/365, 0.1, 1.0)` based on `updated_at` (or `created_at`) for all active facts during GC.
+- New plugin config keys: `gc_interval_days`, `gc_decay_max_days`, `gc_decay_floor`.
 - Migration v6: rebuild `facts_fts` to index **all** facts (including soft-deleted `merged_into IS NOT NULL`), fixing the v5 active-only coverage bug that broke reactivation.
 - `_hrr_quality_audit.py` diagnostic script for side-by-side 3-way vs 2-way RRF evaluation on a live database.
 - RRF (Reciprocal Rank Fusion) based `FactRetriever.search` combining FTS5, Jaccard token overlap, and HRR vector similarity using rank positions instead of raw scores.

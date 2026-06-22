@@ -202,6 +202,9 @@ class HolographicMemoryProvider(MemoryProvider):
             {"key": "hrr_dim", "description": "HRR vector dimensions", "default": "1024"},
             {"key": "near_duplicate_threshold", "description": "Jaccard threshold for merging near-duplicate facts on write", "default": "0.8"},
             {"key": "retain_max_chunk_tokens", "description": "Max tokens per chunk for document retention (LLM context window guard)", "default": "6000"},
+            {"key": "gc_interval_days", "description": "Days between lazy trust-decay GC runs (0 to disable)", "default": "7"},
+            {"key": "gc_decay_max_days", "description": "Days for trust score to decay to gc_decay_floor", "default": "365"},
+            {"key": "gc_decay_floor", "description": "Minimum multiplicative recency factor for trust decay", "default": "0.1"},
         ]
 
     def initialize(self, session_id: str, **kwargs) -> None:
@@ -220,13 +223,25 @@ class HolographicMemoryProvider(MemoryProvider):
         temporal_decay = int(self._config.get("temporal_decay_half_life", 0))
         near_duplicate_threshold = float(self._config.get("near_duplicate_threshold", 0.8))
         retain_max_chunk_tokens = int(self._config.get("retain_max_chunk_tokens", 6000))
+        gc_interval_days = float(self._config.get("gc_interval_days", 7.0))
+        gc_decay_max_days = float(self._config.get("gc_decay_max_days", 365.0))
+        gc_decay_floor = float(self._config.get("gc_decay_floor", 0.1))
 
         self._store = MemoryStore(
             db_path=db_path,
             default_trust=default_trust,
             hrr_dim=hrr_dim,
             near_duplicate_threshold=near_duplicate_threshold,
+            gc_interval_days=gc_interval_days,
+            gc_decay_max_days=gc_decay_max_days,
+            gc_decay_floor=gc_decay_floor,
         )
+        # Run lazy GC at startup to backfill any missed runs while hermes was
+        # away. The GC timestamp prevents this from doing work too frequently.
+        try:
+            self._store.run_gc()
+        except Exception as e:
+            logger.warning("Lazy GC at initialize failed: %s", e)
         self._retain_max_chunk_tokens = max(256, retain_max_chunk_tokens)
         self._retriever = FactRetriever(
             store=self._store,
@@ -293,7 +308,13 @@ class HolographicMemoryProvider(MemoryProvider):
         # Auto-extraction via English regex was removed: it was useless for
         # Chinese, and even in English produced coarse non-atomic facts.
         # Structured extraction happens explicitly via retain_document + LLM.
-        pass
+        # Run lazy GC at session end; the timestamp check makes this cheap
+        # when recently run.
+        if self._store is not None:
+            try:
+                self._store.run_gc()
+            except Exception as e:
+                logger.warning("Lazy GC at session end failed: %s", e)
 
     def on_memory_write(self, action: str, target: str, content: str) -> None:
         """Mirror built-in memory writes as facts."""

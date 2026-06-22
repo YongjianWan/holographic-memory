@@ -91,6 +91,16 @@ CREATE TABLE IF NOT EXISTS schema_version (
     version     INTEGER PRIMARY KEY,
     applied_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS gc_log (
+    gc_id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    gc_type         TEXT NOT NULL,
+    started_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    finished_at     TIMESTAMP,
+    facts_processed INTEGER DEFAULT 0,
+    facts_updated   INTEGER DEFAULT 0,
+    details         TEXT DEFAULT ''
+);
 """
 
 
@@ -191,6 +201,28 @@ def _migration_v5_trigram_tokenizer(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migration_v7_gc_log(conn: sqlite3.Connection) -> None:
+    """Add gc_log table for lazy garbage-collection bookkeeping.
+
+    The gc_log table records when GC runs, how many facts were processed,
+    and how many had their trust scores updated. It lives outside the
+    facts/entities graph so that GC state is queryable and auditable.
+    """
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS gc_log (
+            gc_id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            gc_type         TEXT NOT NULL,
+            started_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            finished_at     TIMESTAMP,
+            facts_processed INTEGER DEFAULT 0,
+            facts_updated   INTEGER DEFAULT 0,
+            details         TEXT DEFAULT ''
+        )
+        """
+    )
+
+
 def _migration_v6_fts_fix_merged_coverage(conn: sqlite3.Connection) -> None:
     """Rebuild facts_fts to include ALL facts, not just active ones.
 
@@ -220,6 +252,7 @@ _MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _migration_v4_merged_into,
     _migration_v5_trigram_tokenizer,
     _migration_v6_fts_fix_merged_coverage,
+    _migration_v7_gc_log,
 ]
 
 

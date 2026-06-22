@@ -109,7 +109,7 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 | `documents.text_hash` 去重                          | ✅ 已实现         | `store_migrations.py` / `store.py` |
 | 文档入口 `retain_document`（§3.5）                 | ✅ 已实现         | `store.py` / `extractors.py` / `__init__.py` |
 | `facts.merged_into` 软删除 & 语义合并（P1-2）       | ✅ 已实现         | `consolidation.py` / `store.py` / `retrieval.py` |
-| 惰性 GC / trust 衰减（P1）                            | ❌ 未实现         | 待写入 `__init__.py` / 新模块 |
+| 惰性 GC / trust 衰减（P1）                            | ✅ 已实现         | `gc.py` / `store.py` / `__init__.py` |
 | `fact_edges` 图边 + CTE 多跳（P2）                  | ❌ 未实现         | 待新增                          |
 
 ## 4. 开发约定

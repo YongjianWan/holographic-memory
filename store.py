@@ -19,11 +19,13 @@ except ImportError:
 try:
     from . import consolidation
     from . import entities
+    from . import gc as gc_module
     from .extractors import FactExtractor, _LocalFallbackExtractor, _LLMConsolidator, _LLMExtractor
     from .store_migrations import _SCHEMA, _run_migrations, _text_hash
 except ImportError:
     import consolidation  # type: ignore[no-redef]
     import entities  # type: ignore[no-redef]
+    import gc as gc_module  # type: ignore[no-redef]
     from extractors import FactExtractor, _LocalFallbackExtractor, _LLMConsolidator, _LLMExtractor  # type: ignore[no-redef]
     from store_migrations import _SCHEMA, _run_migrations, _text_hash  # type: ignore[no-redef]
 
@@ -181,6 +183,10 @@ class MemoryStore:
         default_trust: float = 0.5,
         hrr_dim: int = 1024,
         near_duplicate_threshold: float = 0.8,
+        *,
+        gc_interval_days: float = 7.0,
+        gc_decay_max_days: float = 365.0,
+        gc_decay_floor: float = 0.1,
     ) -> None:
         if db_path is None:
             from hermes_constants import get_hermes_home
@@ -199,6 +205,12 @@ class MemoryStore:
         self._lock = threading.RLock()
         self._conn.row_factory = sqlite3.Row
         self._init_db()
+        self._gc = gc_module.GarbageCollector(
+            self._conn,
+            interval_days=gc_interval_days,
+            decay_max_days=gc_decay_max_days,
+            decay_floor=gc_decay_floor,
+        )
 
     # ------------------------------------------------------------------
     # Initialisation
@@ -1114,6 +1126,14 @@ class MemoryStore:
     def _row_to_dict(self, row: sqlite3.Row) -> dict:
         """Convert a sqlite3.Row to a plain dict."""
         return dict(row)
+
+    def run_gc(self, force: bool = False) -> dict:
+        """Run lazy garbage collection (currently trust-decay).
+
+        This is a thin forwarder to ``GarbageCollector.maybe_run`` so that
+        callers in __init__.py do not need to import gc.py directly.
+        """
+        return self._gc.maybe_run(force=force)
 
     def close(self) -> None:
         """Checkpoint WAL and close the database connection."""

@@ -24,8 +24,8 @@ class TestMigrations:
             ).fetchone()
             assert row is not None
             # _SCHEMA is the latest structure, so a fresh DB is recognised as
-            # already at v6 and no migrations (and no backup) are needed.
-            assert int(row["version"]) == 6
+            # already at the latest version and no migrations (and no backup) are needed.
+            assert int(row["version"]) == 7
 
             tables = {
                 r["name"]
@@ -49,7 +49,7 @@ class TestMigrations:
         finally:
             store.close()
             # No backup should have been created for a fresh empty database.
-            assert not Path(f"{db_path}.bak.v6").exists()
+            assert not Path(f"{db_path}.bak.v7").exists()
             Path(db_path).unlink(missing_ok=True)
 
     def test_legacy_database_without_schema_version_is_baselined_to_v0(
@@ -88,8 +88,8 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            # Should end at v6 (migrations applied after baseline v0).
-            assert int(row["version"]) == 6
+            # Should end at v7 (migrations applied after baseline v0).
+            assert int(row["version"]) == 7
 
             columns = {
                 r[1]
@@ -140,7 +140,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            assert int(row["version"]) == 6
+            assert int(row["version"]) == 7
 
             columns = {
                 r[1]
@@ -233,7 +233,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            assert int(row["version"]) == 6
+            assert int(row["version"]) == 7
 
             columns = {
                 r[1]
