@@ -6,9 +6,12 @@
 
 ## 当前焦点
 
-- P1-2 语义合并安全验证：
-  - **A（临时库）**：用 3 个桌面 .md 文件灌出 159-fact 临时库，发现 1 个候选簇；执行合并后 2 facts 被软删、1 个新 fact 生成；回滚（`merged_into=NULL`）后原 facts 重新可见。合并与回滚机制通过。
-  - **B（真实库）**：29-fact 真实库无自然近重复，强制合并 `25,26,27` 被 LLM 守卫拒绝（`facts_merged=0`），说明当前策略不会随便软删记忆。
+- 实体抽取中文优化已落地并同步到 hermes 实时目录。
+- 真实库 `memory_store.db` 已重新索引实体：
+  - 优化前：29 facts / 16 entities / 16 links
+  - 优化后：29 facts / **65 entities** / **79 links** / avg fan-out 1.22
+- 真实库现在产生 **4 个 consolidation 候选簇**，但 Cluster 4（holographic memory 相关，4 facts）跑 consolidation 仍被 LLM 守卫拒绝合并（内容主题不同）。
+- `generic_threshold` 已改为自适应：小库按 `max(3, min(15, active_facts // 5))` 计算，避免 `API`/`AI` 等中等频次实体拉出过宽候选簇。
 
 ## 进行中
 
@@ -19,16 +22,20 @@
 - [x] 完成文档整理并 commit。
 - [x] 同步到 hermes 实时目录。
 - [x] 跑 P1-2 A+B 安全验证。
-- [ ] 决定是否给 `run_consolidation_trial.py` 增加 `--db` 参数并 commit 该改进。
+- [x] 给 `run_consolidation_trial.py` 增加 `--db` 参数并修复相对导入问题。
+- [x] 优化中文实体抽取并重新索引真实库。
+- [x] 让 `generic_threshold` 自适应小库。
 
 ## 已知陷阱（临时）
 
-- `run_consolidation_trial.py` 原先用 `from __init__ import _resolve_model_call`，作为脚本运行时会因相对导入失败。已本地修复为内联 `_resolve_model_call`，尚未 commit。
+- 无。
 
 ## 决策记录
 
 - HRR 暂时不改动：审计结论是噪音占多数，但用户决定先保留，后续再决策。
 - P1-2 当前策略不会误合并：真实库强制合并实验被 LLM 守卫拒绝；临时库自然近重复合并可正常回滚。
+- 中文实体抽取不引入外部依赖（jieba 等），用正则规则 + 技术后缀 + 缩写/点号技术词实现。
+- 真实库已备份：`memory_store.db.bak.before_entity_reindex_20260622_122721`。
 
 ---
 
