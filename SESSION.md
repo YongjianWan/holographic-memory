@@ -65,6 +65,8 @@
 - **store.py 重构**：拆出 `store_migrations.py`（schema + 迁移）和 `extractors.py`（LLM/fallback 提取器 + consolidator），`store.py` 从 ~2228 行降至 ~1700 行；测试 72 passed。
 - **P1-2 调参方向被拦**：在 29 条 facts 的样本上继续放宽 generic/Jaccard 阈值以"让 consolidation 更频繁触发"是错的——当前库中近重复本就稀少，这是 P0 写入探重有效的证据。下一步应先批量灌入真实文档，等样本到几百条、出现真实近重复后再调参。
 - **P2 闸门**：50 条 go/no-go 中 GO 占 60%，不是"全是 Aiden 干了啥"，建议进入 P2 shared-entity 边 canary 验证。
+- **生产库测试场纪律**：当前库小、数据可再生，同意拿生产库 `memory_store.db` 当测试场主动"造"bug。唯一红线：每次动生产库前必须先 `cp memory_store.db memory_store.db.bak.<标签>`；backup 不是为了防数据丢失，而是为了"动手前快照 vs 动手后状态"的 diff，定位环境耦合类 bug（如 HRR/entity 不一致、migration 顺序、路径配置等）。
+
 
 ---
 
