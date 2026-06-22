@@ -97,7 +97,7 @@ class TestEntityNormalization:
     def test_spacing_variant_still_merges(self, store: MemoryStore) -> None:
         # Spacing differences should still be caught by conservative edit distance.
         store.add_fact('"OpenAI" is a company')
-        store.add_fact('"Open AI" has an API')
+        store.add_fact('"Open AI" has many products')
 
         report = store.normalize_entities()
 

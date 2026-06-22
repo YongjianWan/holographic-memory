@@ -683,6 +683,46 @@ _RE_AKA          = re.compile(
     re.IGNORECASE,
 )
 
+# Chinese quoted terms: 「全息记忆」 / 『Python』
+_RE_CHINESE_QUOTE = re.compile(r'[「『]([^」』]+)[」』]')
+
+# Common Chinese/technical suffixes that strongly signal a named entity.
+_CHINESE_TECH_SUFFIXES = (
+    "系统|平台|框架|库|工具|引擎|模型|算法|接口|服务|应用|程序|数据库|模块|组件|"
+    "函数|类|方法|变量|参数|配置|文件|目录|路径|协议|格式|标准|语言|环境|"
+    "测试|生产|开发|部署|发布|版本|分支|提交|合并|构建|编译|打包|镜像|容器|"
+    "节点|集群|网络|服务器|客户端|网关|代理|缓存|会话|令牌|密钥|证书|签名|"
+    "密码|认证|授权|审计|日志|监控|告警|通知|消息|邮件|队列|主题|路由|"
+    "工作流|流水线|调度|执行|处理|计算|生成|渲染|转换|提取|加载|编码|解码|"
+    "压缩|解压|加密|解密|分词|标注|分类|聚类|回归|预测|推荐|检索|排序|"
+    "评估|度量|指标|统计|图表|报告|查询|搜索|索引|事务|锁|隔离|一致性|"
+    "可用性|分区容错|扩展|伸缩|备份|恢复|迁移|同步|复制|分片|分区|"
+    "记忆|内存|存储|事实|实体|向量|相似度|阈值|置信度"
+)
+_RE_CHINESE_TECH = re.compile(
+    rf'(?<![A-Za-z0-9_\-])([\u4e00-\u9fffA-Za-z0-9_\-]{{1,15}})({_CHINESE_TECH_SUFFIXES})(?![A-Za-z0-9_\-])'
+)
+
+# Bare acronyms (HRR, FTS5) and dotted tech tokens (Vue.js, Node.js)
+_RE_ACRONYM     = re.compile(r'\b([A-Z]{2,}\d*)\b')
+_RE_DOTTED_TECH = re.compile(r'\b([A-Za-z][A-Za-z0-9]*\.[A-Za-z0-9]+)\b')
+
+# Generic Chinese prefixes that should not stand alone as an entity.
+_CHINESE_STOPWORDS = frozenset({
+    "这", "那", "此", "该", "一", "一个", "一种", "一些", "某些", "某个", "这个",
+    "那个", "这些", "那些", "所有", "全部", "部分", "任何", "每个", "各", "本",
+    "上", "下", "前", "后", "左", "右", "中", "内", "外", "里", "间", "边", "面",
+    "方", "头", "尾", "部", "侧", "端", "项", "条", "件", "个", "种", "类", "份",
+    "张", "本", "套", "组", "批", "堆", "串", "行", "列", "排", "层", "级", "等",
+    "整", "整个", "大", "小", "高", "低", "长", "短", "多", "少", "好", "坏", "新",
+    "旧", "老", "初", "主", "次", "正", "副", "假", "真", "虚", "实", "公", "私",
+    "同", "异", "单", "双", "复", "全", "半", "微", "巨", "重", "轻", "强", "弱",
+    "快", "慢", "早", "晚", "近", "远", "先", "后", "未", "已", "将", "现", "原",
+    "当", "每", "某", "他", "她", "它", "其", "之", "所", "与", "及", "或", "且",
+    "而", "但", "因", "为", "于", "以", "从", "到", "向", "往", "在", "对", "把",
+    "被", "让", "给", "跟", "比", "除了", "关于", "根据", "按照",
+})
+
 # Quoted strings often capture whole phrases/sentences (e.g. a task body) rather
 # than named entities. Reject candidates that are too long or contain sentence-
 # level punctuation. This is a write-time guard; existing dirty entities still
@@ -1899,9 +1939,13 @@ class MemoryStore:
         2. Double-quoted terms             e.g. "Python"
         3. Single-quoted terms             e.g. 'pytest'
         4. AKA patterns                    e.g. "Guido aka BDFL" -> two entities
+        5. Chinese quoted terms            e.g. 「全息记忆」
+        6. Chinese/English + tech suffix   e.g. "公文写作系统", "Vue.js"
+        7. Acronyms / dotted tech tokens   e.g. "HRR", "FTS5"
 
         Quoted candidates are rejected if they look like a phrase or sentence
         rather than a named entity (too long or containing sentence punctuation).
+        Chinese suffix candidates are rejected if the prefix is only stop-words.
 
         Returns a deduplicated list preserving first-seen order.
         """
@@ -1921,6 +1965,25 @@ class MemoryStore:
                 return True
             return False
 
+        def _prefix_is_stopwords_only(prefix: str) -> bool:
+            """Return True if every character in prefix is a stop-word token.
+
+            We treat each CJK character as its own token; latin tokens are split
+            on whitespace. The goal is to reject candidates like "这个系统".
+            """
+            import re
+
+            tokens: list[str] = []
+            for token in re.split(r"\s+", prefix.strip()):
+                if not token:
+                    continue
+                # Split contiguous CJK characters so "这个" -> ["这", "个"].
+                chars = re.findall(r"[\u4e00-\u9fff]|[A-Za-z0-9_\-]+", token)
+                tokens.extend(chars)
+            if not tokens:
+                return True
+            return all(t in _CHINESE_STOPWORDS for t in tokens)
+
         for m in _RE_CAPITALIZED.finditer(text):
             candidate = m.group(1)
             if len(candidate) <= _MAX_QUOTED_ENTITY_LEN:
@@ -1939,6 +2002,30 @@ class MemoryStore:
         for m in _RE_AKA.finditer(text):
             _add(m.group(1))
             _add(m.group(2))
+
+        # Chinese quoted terms.
+        for m in _RE_CHINESE_QUOTE.finditer(text):
+            candidate = m.group(1)
+            if not _looks_like_phrase_not_entity(candidate):
+                _add(candidate)
+
+        # Chinese/English tokens followed by a tech suffix.
+        for m in _RE_CHINESE_TECH.finditer(text):
+            prefix = m.group(1)
+            suffix = m.group(2)
+            if not _prefix_is_stopwords_only(prefix):
+                _add(prefix + suffix)
+
+        # Acronyms and dotted tech tokens.
+        # Acronyms that are substrings of already-captured entities (e.g. "AI"
+        # inside "Open AI") are skipped to avoid duplicate fragments.
+        seen_lower_str = "".join(seen)
+        for m in _RE_ACRONYM.finditer(text):
+            acronym = m.group(1)
+            if f" {acronym.lower()} " not in f" {seen_lower_str} ":
+                _add(acronym)
+        for m in _RE_DOTTED_TECH.finditer(text):
+            _add(m.group(1))
 
         return candidates
 
