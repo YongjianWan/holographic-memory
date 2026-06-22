@@ -5,7 +5,6 @@ Single-user Hermes memory store plugin.
 
 import logging
 import math
-import re
 import sqlite3
 import threading
 from collections.abc import Callable
@@ -20,13 +19,13 @@ try:
     from . import consolidation
     from . import entities
     from . import memory_gc as gc_module
-    from .extractors import FactExtractor, _LocalFallbackExtractor, _LLMConsolidator, _LLMExtractor
+    from .extractors import FactExtractor, _LocalFallbackExtractor, _LLMConsolidator, _LLMExtractor, split_sentences
     from .store_migrations import _SCHEMA, _run_migrations, _text_hash
 except ImportError:
     import consolidation  # type: ignore[no-redef]
     import entities  # type: ignore[no-redef]
     import memory_gc as gc_module  # type: ignore[no-redef]
-    from extractors import FactExtractor, _LocalFallbackExtractor, _LLMConsolidator, _LLMExtractor  # type: ignore[no-redef]
+    from extractors import FactExtractor, _LocalFallbackExtractor, _LLMConsolidator, _LLMExtractor, split_sentences  # type: ignore[no-redef]
     from store_migrations import _SCHEMA, _run_migrations, _text_hash  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
@@ -53,25 +52,6 @@ def _content_item_count(content: str) -> int:
     if _CONTENT_ITEM_ENCODING is not None:
         return len(_CONTENT_ITEM_ENCODING.encode(content))
     return len(hrr.tokenize_text(content))
-
-
-_SENTENCE_END_RE = re.compile(r"([。！？.!?])")
-
-
-def _split_sentences(text: str) -> list[str]:
-    """Split text into sentences, preserving Chinese and ASCII sentence endings."""
-    parts = _SENTENCE_END_RE.split(text)
-    sentences: list[str] = []
-    i = 0
-    while i < len(parts):
-        if i + 1 < len(parts) and parts[i + 1] in "。！？.!?":
-            sentences.append(parts[i] + parts[i + 1])
-            i += 2
-        else:
-            if parts[i].strip():
-                sentences.append(parts[i])
-            i += 1
-    return [s.strip() for s in sentences if s.strip()]
 
 
 def _hard_split_text(text: str, max_tokens: int) -> list[str]:
@@ -122,7 +102,7 @@ def _chunk_text(raw_text: str, max_tokens: int) -> list[str]:
                 current = ""
                 current_tokens = 0
             # Split oversized paragraph by sentence.
-            for sent in _split_sentences(para):
+            for sent in split_sentences(para):
                 sent_tokens = _content_item_count(sent)
                 if sent_tokens > max_tokens:
                     if current:

@@ -235,6 +235,14 @@ class TestExtractors:
         facts = extractor.extract(text, "general")
         assert len(facts) == 1
 
+    def test_local_fallback_extractor_splits_chinese_sentences(self) -> None:
+        # Chinese prose rarely uses ASCII periods; the fallback extractor must
+        # split on 。！？ too, or a whole document becomes one oversized fact.
+        extractor = _LocalFallbackExtractor(min_length=5)
+        text = "投促局项目由李善光负责。当前状态为开发中！需求是否确认？"
+        facts = extractor.extract(text, "general")
+        assert facts == ["投促局项目由李善光负责。", "当前状态为开发中！", "需求是否确认？"]
+
     def test_llm_extractor_parses_lines(self) -> None:
         def fake(prompt: str) -> str:
             return "- First atomic fact.\n• Second atomic fact.\nno"

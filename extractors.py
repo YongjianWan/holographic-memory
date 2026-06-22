@@ -3,8 +3,27 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from typing import Protocol
+
+_SENTENCE_END_RE = re.compile(r"([。！？.!?])")
+
+
+def split_sentences(text: str) -> list[str]:
+    """Split text into sentences, preserving Chinese and ASCII sentence endings."""
+    parts = _SENTENCE_END_RE.split(text)
+    sentences: list[str] = []
+    i = 0
+    while i < len(parts):
+        if i + 1 < len(parts) and parts[i + 1] in "。！？.!?":
+            sentences.append(parts[i] + parts[i + 1])
+            i += 2
+        else:
+            if parts[i].strip():
+                sentences.append(parts[i])
+            i += 1
+    return [s.strip() for s in sentences if s.strip()]
 
 
 class FactExtractor(Protocol):
@@ -29,13 +48,12 @@ class _LocalFallbackExtractor:
         self.min_length = min_length
 
     def extract(self, raw_text: str, category: str) -> list[str]:
-        import re
-
         raw_text = raw_text.strip()
         if not raw_text:
             return []
-        # Split on sentence boundaries; this is intentionally coarse.
-        sentences = re.split(r"(?<=[.!?])\s+", raw_text)
+        # Split on sentence boundaries (ASCII and Chinese); this is
+        # intentionally coarse.
+        sentences = split_sentences(raw_text)
         seen: set[str] = set()
         facts: list[str] = []
         for sentence in sentences:

@@ -35,6 +35,13 @@
 
 - 无。
 
+## 远程沙箱会话记录（无生产库/无 LLM key）
+
+- 本会话运行环境是远程容器克隆，没有用户本机的生产库 `memory_store.db`、`SOUL.md`（符号链接指向 Windows 本机路径，断链）、也没有 `DEEPSEEK_API_KEY`。因此跳过需要真实数据判断的任务（§4 类灌库验证、按子项目细分 `project` category），改做纯代码层面、有测试覆盖的修复。
+- **修复 fallback 提取器中文分句缺陷**：`_LocalFallbackExtractor.extract` 此前仅按 ASCII `.!?` 切句；中文文档很少用 ASCII 句号，无 LLM key 时整篇会被当成一条超长 fact 存入，直接撞上 HRR capacity warning。改为与 `store.py` 文档分块共用同一个中英文混合分句器（提到 `extractors.py`，命名为 `split_sentences`），消除重复实现。新增回归测试 `test_local_fallback_extractor_splits_chinese_sentences`。
+- **清理过期 TECH_DEBT 条目**：L3"工具面 fact_store 缺乏默认 LLM 提炼支持"实际已在 `c1bb204` 通过 `_resolve_model_call` 解决（`retain`/`consolidate` 均已注入 DeepSeek/OpenAI client），文档未同步，已从活跃债务移除。
+- `pytest`：104 passed（远程容器默认未装 `numpy`/`pytest`，需先 `pip install numpy pytest`；缺 numpy 时 1 个 HRR 相关测试因向量退化为 None 而误报失败，非代码 bug）。
+
 ## 本轮待办
 
 - [x] 完成文档整理并 commit。
@@ -70,4 +77,4 @@
 
 ---
 
-*Last updated: 2026-06-22*
+*Last updated: 2026-06-22（远程沙箱会话补充）*

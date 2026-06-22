@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `_LocalFallbackExtractor` (used when no LLM key is configured) only split sentences on ASCII `.!?`, so Chinese documents — which rarely use ASCII periods — were retained as a single oversized fact instead of being split per-sentence. Now shares the Chinese-aware `split_sentences` helper (moved to `extractors.py`) with the document chunker in `store.py`.
 - Split `store.py` into `entities.py` (extraction/resolution/name matching) and `consolidation.py` (candidate discovery and LLM-driven merging). `store.py` now holds storage orchestration and thin forwarding methods.
 - Added missing `Callable` import in `__init__.py` (used by `_resolve_model_call` annotation).
 - `_load_plugin_config` and `save_config` no longer swallow exceptions silently; they now log warnings/errors.
