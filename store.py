@@ -19,13 +19,13 @@ except ImportError:
 try:
     from . import consolidation
     from . import entities
-    from . import gc as gc_module
+    from . import memory_gc as gc_module
     from .extractors import FactExtractor, _LocalFallbackExtractor, _LLMConsolidator, _LLMExtractor
     from .store_migrations import _SCHEMA, _run_migrations, _text_hash
 except ImportError:
     import consolidation  # type: ignore[no-redef]
     import entities  # type: ignore[no-redef]
-    import gc as gc_module  # type: ignore[no-redef]
+    import memory_gc as gc_module  # type: ignore[no-redef]
     from extractors import FactExtractor, _LocalFallbackExtractor, _LLMConsolidator, _LLMExtractor  # type: ignore[no-redef]
     from store_migrations import _SCHEMA, _run_migrations, _text_hash  # type: ignore[no-redef]
 
@@ -1131,7 +1131,7 @@ class MemoryStore:
         """Run lazy garbage collection (currently trust-decay).
 
         This is a thin forwarder to ``GarbageCollector.maybe_run`` so that
-        callers in __init__.py do not need to import gc.py directly.
+        callers in __init__.py do not need to import memory_gc.py directly.
         """
         return self._gc.maybe_run(force=force)
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from holographic.gc import GarbageCollector, recency_factor
+from holographic.memory_gc import GarbageCollector, recency_factor
 from holographic.store import MemoryStore
 from holographic.store_migrations import _SCHEMA
 
