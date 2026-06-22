@@ -10,8 +10,14 @@
 - 真实库 `memory_store.db` 已重新索引实体：
   - 优化前：29 facts / 16 entities / 16 links
   - 优化后：29 facts / **65 entities** / **79 links** / avg fan-out 1.22
-- 真实库现在产生 **4 个 consolidation 候选簇**，但 Cluster 4（holographic memory 相关，4 facts）跑 consolidation 仍被 LLM 守卫拒绝合并（内容主题不同）。
-- `generic_threshold` 已改为自适应：小库按 `max(3, min(15, active_facts // 5))` 计算，避免 `API`/`AI` 等中等频次实体拉出过宽候选簇。
+- 真实库现在产生 **4 个 consolidation 候选簇**：
+  - Cluster 1: MCP/AI 数据依赖（2 facts）
+  - Cluster 2: Shensi / CLI / API keys（2 facts）
+  - Cluster 3: IMAP / email / ecosystem（2 facts）
+  - Cluster 4: holographic memory 演进（4 facts）
+- 候选发现策略已加入 **Jaccard token-overlap 过滤**：仅共享 generic 实体的候选对需要内容重叠 >= 0.3；共享非 generic 实体直接通过。
+- `generic_threshold` 已改为自适应：`max(3, min(15, active_facts // 6))`，让 `AI`/`API` 等小库高频词被识别为 generic。
+- Cluster 4 跑 consolidation 仍被 LLM 守卫拒绝合并（4 条内容主题不同），说明合并保护有效。
 
 ## 进行中
 
