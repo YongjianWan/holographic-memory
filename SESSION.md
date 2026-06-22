@@ -42,6 +42,7 @@
 - P1-2 当前策略不会误合并：真实库强制合并实验被 LLM 守卫拒绝；临时库自然近重复合并可正常回滚。
 - 中文实体抽取不引入外部依赖（jieba 等），用正则规则 + 技术后缀 + 缩写/点号技术词实现。
 - 真实库已备份：`memory_store.db.bak.before_entity_reindex_20260622_122721`。
+- **store.py 重构**：拆出 `store_migrations.py`（schema + 迁移）和 `extractors.py`（LLM/fallback 提取器 + consolidator），`store.py` 从 ~2228 行降至 ~1700 行；测试 72 passed。
 
 ---
 
