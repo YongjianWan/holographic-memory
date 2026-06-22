@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from holographic.store import MemoryStore, _migration_v2_documents, _migration_v3_document_hash
+from holographic.store import MemoryStore
+from holographic.store_migrations import _migration_v2_documents, _migration_v3_document_hash
 
 
 class TestMigrations:
@@ -349,7 +350,7 @@ class TestMigrations:
         the source row exists. v6 runs 'rebuild' to re-index from the
         full content source table, making merged fact content searchable.
         """
-        from holographic.store import _migration_v6_fts_fix_merged_coverage
+        from holographic.store_migrations import _migration_v6_fts_fix_merged_coverage
         import pathlib as pl
 
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
