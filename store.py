@@ -1676,13 +1676,20 @@ class MemoryStore:
         category: str | None = None,
         generic_threshold: int = 15,
         max_cluster_size: int = 6,
+        clusters: list[list[dict]] | None = None,
     ) -> dict:
-        """Run semantic consolidation using LLM on clusters of facts with shared entities."""
-        clusters = self._find_consolidation_candidates(
-            category=category,
-            generic_threshold=generic_threshold,
-            max_cluster_size=max_cluster_size,
-        )
+        """Run semantic consolidation using LLM on clusters of facts.
+
+        When ``clusters`` is provided, it is used directly instead of running
+        the internal entity-based discovery. This is useful for controlled
+        trials or external clusterers.
+        """
+        if clusters is None:
+            clusters = self._find_consolidation_candidates(
+                category=category,
+                generic_threshold=generic_threshold,
+                max_cluster_size=max_cluster_size,
+            )
         if not clusters:
             return {
                 "clusters_processed": 0,

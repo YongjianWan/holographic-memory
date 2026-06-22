@@ -64,7 +64,7 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 1. 在当前工作目录改代码、跑测试、做版本控制。
 2. 改动稳定后，再复制/同步到 AppData 下的实时目录，供 hermes 实际加载。
 3. 不要把实时目录里的 `.db` 文件或 `__pycache__` 拖进本仓库。
-4. **任何 API key / 令牌只能走环境变量**，禁止写死在源码、测试、文档或提交记录里；eval 脚本产生的 `.log`、`.json` 中间报告也不要提交。
+4. **任何 API key / 令牌只能走环境变量**
 ---
 
 ## 人格与工程纪律
@@ -162,6 +162,9 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 - 单元测试：RRF 公式、Jaccard 计算、entity 归一化聚类、P0 探重阈值与 merge 行为。
 - 集成测试：在临时 SQLite 文件上跑完整 `add_fact → search/probe/reason → feedback` 链路，测试结束后删除临时库。
 - 测试文件放在 `tests/`；`conftest.py` 已提供 hermes 内部模块 stub，并把 `db_path` 指向临时文件，**不要碰真实 `memory_store.db`**。
+- **所有测试脚本、试验脚本、可执行验证脚本必须放在 `tests/` 目录内**，不要散落在项目根目录：
+  - pytest 自动收集的测试文件统一命名为 `test_*.py`，放在 `tests/` 根下。
+  - 非 pytest 的临时/私有试验脚本（如操作真实 DB 的 trial、桌面文件灌库脚本）放在 `tests/scripts/` 子目录，并用 `run_*` 前缀避免被 pytest 自动收集。
 
 ## 7. 常见坑
 
