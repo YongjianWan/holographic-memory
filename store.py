@@ -707,6 +707,16 @@ _RE_CHINESE_TECH = re.compile(
 _RE_ACRONYM     = re.compile(r'\b([A-Z]{2,}\d*)\b')
 _RE_DOTTED_TECH = re.compile(r'\b([A-Za-z][A-Za-z0-9]*\.[A-Za-z0-9]+)\b')
 
+# English stop-words for Jaccard filtering during candidate discovery.
+_ENGLISH_STOPWORDS = frozenset({
+    "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "of",
+    "with", "by", "from", "as", "is", "are", "was", "were", "be", "been",
+    "being", "have", "has", "had", "do", "does", "did", "will", "would",
+    "could", "should", "may", "might", "must", "can", "this", "that", "these",
+    "those", "i", "you", "he", "she", "it", "we", "they", "me", "him", "her",
+    "us", "them", "my", "your", "his", "its", "our", "their", "am", "s", "t",
+})
+
 # Generic Chinese prefixes that should not stand alone as an entity.
 _CHINESE_STOPWORDS = frozenset({
     "这", "那", "此", "该", "一", "一个", "一种", "一些", "某些", "某个", "这个",
@@ -1078,15 +1088,20 @@ class MemoryStore:
         category: str | None = None,
         generic_threshold: int | None = None,
         max_cluster_size: int = 6,
+        min_jaccard: float = 0.3,
     ) -> list[list[dict]]:
         """Find clusters of facts that share entities and are candidates for consolidation.
 
         Excludes high-frequency generic entities from generating single-entity matches
-        unless the facts share at least 2 entities total.
+        unless the facts share at least 2 entities total or have sufficient token overlap.
 
         When ``generic_threshold`` is None, it is computed adaptively as
-        ``max(3, min(15, active_facts // 5))`` so small memory stores are not
+        ``max(3, min(15, active_facts // 6))`` so small memory stores are not
         dominated by a few moderately frequent terms.
+
+        For pairs that only share a single generic entity, an additional
+        Jaccard token-overlap check (default 0.3) filters out semantically
+        unrelated facts.
         """
         with self._lock:
             # 1. Fetch all fact-entity associations
@@ -1128,10 +1143,23 @@ class MemoryStore:
             # Identify generic entities
             if generic_threshold is None:
                 active_facts = len(fact_data)
-                generic_threshold = max(3, min(15, active_facts // 5))
+                generic_threshold = max(3, min(15, active_facts // 6))
             generic_entities = {
                 eid for eid, fids in entity_to_facts.items() if len(fids) >= generic_threshold
             }
+
+            # Pre-compute token sets for Jaccard filtering (exclude stop-words).
+            fact_tokens: dict[int, set[str]] = {}
+            for fid, data in fact_data.items():
+                fact_tokens[fid] = {
+                    t for t in hrr.tokenize_text(data["content"])
+                    if t not in _ENGLISH_STOPWORDS
+                }
+
+            def _jaccard(a: set, b: set) -> float:
+                if not a or not b:
+                    return 0.0
+                return len(a & b) / len(a | b)
 
             # 3. Find candidate pairs based on co-occurrence rules
             shared_entities_count: dict[tuple[int, int], int] = defaultdict(int)
@@ -1146,8 +1174,13 @@ class MemoryStore:
             for (f1, f2), shared_count in shared_entities_count.items():
                 shared_ents = fact_to_entities[f1] & fact_to_entities[f2]
                 shared_non_generic = shared_ents - generic_entities
-                # Match if sharing >= 1 non-generic entity, OR sharing >= 2 generic/non-generic entities
-                if len(shared_non_generic) >= 1 or shared_count >= 2:
+                # Strong signal: sharing >= 1 non-generic entity always qualifies.
+                if len(shared_non_generic) >= 1:
+                    candidate_pairs.add((f1, f2))
+                    continue
+                # Generic-only signals require enough token overlap to avoid
+                # clustering unrelated facts that merely mention the same buzzwords.
+                if _jaccard(fact_tokens[f1], fact_tokens[f2]) >= min_jaccard:
                     candidate_pairs.add((f1, f2))
 
             # 4. Group candidate pairs into connected components (BFS)
@@ -1723,6 +1756,7 @@ class MemoryStore:
         category: str | None = None,
         generic_threshold: int | None = None,
         max_cluster_size: int = 6,
+        min_jaccard: float = 0.3,
         clusters: list[list[dict]] | None = None,
     ) -> dict:
         """Run semantic consolidation using LLM on clusters of facts.
@@ -1736,6 +1770,7 @@ class MemoryStore:
                 category=category,
                 generic_threshold=generic_threshold,
                 max_cluster_size=max_cluster_size,
+                min_jaccard=min_jaccard,
             )
         if not clusters:
             return {

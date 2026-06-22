@@ -40,6 +40,7 @@ class TestCandidateGrouping:
             category="project",
             generic_threshold=3,
             max_cluster_size=6,
+            min_jaccard=1.0,  # disable Jaccard shortcut for this generic-only test
         )
         assert not clusters
 
@@ -50,6 +51,7 @@ class TestCandidateGrouping:
             category="project",
             generic_threshold=3,
             max_cluster_size=6,
+            min_jaccard=1.0,
         )
         assert len(clusters) == 1
         cluster_fids = {f["fact_id"] for f in clusters[0]}
@@ -57,12 +59,12 @@ class TestCandidateGrouping:
         assert fid4 in cluster_fids
 
     def test_adaptive_generic_threshold_for_small_stores(self, store: MemoryStore) -> None:
-        # With 6 active facts, adaptive threshold = max(3, min(15, 6 // 5)) = 3.
+        # With 6 active facts, adaptive threshold = max(3, min(15, 6 // 6)) = 3.
         # "API" appears in 3 facts, so it should be treated as generic and not
         # create candidates on its own.
-        store.add_fact('"API" is used by service A', category="project")
-        store.add_fact('"API" is used by service B', category="project")
-        store.add_fact('"API" is used by service C', category="project")
+        store.add_fact('"API" returns weather data', category="project")
+        store.add_fact('"API" unrelated fact about robots', category="project")
+        store.add_fact('"API" controls warehouse lighting', category="project")
         store.add_fact('"Redis" caches data', category="project")
         store.add_fact('"Postgres" stores data', category="project")
         store.add_fact('"Vue" renders UI', category="project")
@@ -71,7 +73,7 @@ class TestCandidateGrouping:
         assert not clusters
 
         # Adding a non-generic shared entity creates a real candidate.
-        store.add_fact('"Redis" is used by service A', category="project")
+        store.add_fact('"Redis" powers the session cache', category="project")
         clusters = store._find_consolidation_candidates(category="project")
         assert len(clusters) == 1
         cluster_fids = {f["fact_id"] for f in clusters[0]}
