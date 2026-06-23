@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from typing import Protocol
 
@@ -29,8 +30,6 @@ class _LocalFallbackExtractor:
         self.min_length = min_length
 
     def extract(self, raw_text: str, category: str) -> list[str]:
-        import re
-
         raw_text = raw_text.strip()
         if not raw_text:
             return []
@@ -83,21 +82,21 @@ class _LLMExtractor:
             "- Only extract statements that assert stable, verifiable facts about the world. A valid fact must be something that, if taken out of context and read by a stranger three months later, can be verified as true or false.\n"
             "- Also preserve explicit recommendations or stated positions (e.g., 'Claude recommends X', 'The document states Y is the preferred approach'), as these are stable assertions about what was advised.\n"
             "- REJECT conversational scaffolding, filler words (e.g., '嗯', '对对对', '你重录', '哦', '啊', '对', '好吧'), and raw timestamps.\n"
-            "- REJECT statements that only describe dialogue state, temporary interactive status, or conversational boilerplate (e.g., reject 'Claude says it's time to sleep', 'goodnight', or metaphors like 'stockpiling ammo/wiping the gun'). Keep the spoken content only if it asserts a stable, verifiable factual claim or task specification (e.g., '赵传帅需在周四前完成税收金融原型' or 'Claude指出如果心里想走，Offer的最佳用法是直接走').\n\n"
+            "- REJECT statements that only describe dialogue state, temporary interactive status, or conversational boilerplate (e.g., reject 'Claude says it's time to sleep', 'goodnight', or metaphors like 'stockpiling ammo/wiping the gun'). Keep the spoken content only if it asserts a stable, verifiable factual claim or task specification (e.g., '赵传帅需在2026年6月18日周四前完成税收金融原型' or 'Claude指出如果心里想走，Offer的最佳用法是直接走').\n\n"
             "3. NO Abductions or Motive Inferences:\n"
-            "- Do NOT infer motives, psychological profiles, or abstract behavioral patterns that are not explicitly stated as factual claims in the text. For example, never extract claims like '用户存在用技术逃避投简历的避难模式' or '用户控制欲强'. Focus strictly on stated facts and concrete assertions.\n"
+            "- Do NOT extract motives, psychological profiles, or abstract behavioral patterns, whether inferred by you or explicitly stated as psychological attributions or personality labels in the source text (e.g., reject claims like '用户存在用技术逃避投简历的避难模式', '用户因焦虑而避难', or '用户控制欲强'). Focus strictly on stated facts and concrete assertions.\n"
             "- However, DO extract explicitly stated behavioral preferences or self-descriptions (e.g., '用户表示更倾向于先完成开发工作', '用户明确说自己不想回神思'), as these are stated facts, not inferences.\n\n"
             "Good examples:\n"
             "- 发改委项目要求所有功能入口整合为Chat形式。\n"
             "- 菜单名称必须写作“企业库”，不得自行改名。\n"
             "- Claude指出如果心里想走，Offer的最佳用法是直接走，不是回神思谈薪。\n"
             "- 陕西西安售后岗位年薪应发1.1万元属于正常偏上的薪资水平。\n"
-            "- 赵传帅需在周四前完成税收金融原型。\n"
+            "- 赵传帅需在2026年6月18日前完成税收金融原型。\n"
             "- 展示口径应为“开发区承载方向”，口径公式为“区县总览+差+2产业链+开发区承载方向”。\n"
             "- 招商匹配包括落地区域、政策、人才、科技支撑。\n\n"
             "Bad examples (do NOT output like this):\n"
             "- 投促局项目由李善光负责且已四次汇报，毕局确认，凌云志85分，发改委要Chat入口。（Fails rule 1: compound sentence, must split into separate facts）\n"
-            "- [00:12] 嗯对的，赵传帅周四交原型。（Fails rule 2: contains timestamp and fillers, output should be: 赵传帅需在周四完成原型）\n"
+            "- [00:12] 嗯对的，赵传帅周四交原型。（Fails rule 2: contains timestamp, fillers, and an unanchored relative date '周四'. The extracted fact must anchor relative dates to absolute dates if context permits, e.g., '赵传帅需在2026-06-18前完成原型'。）\n"
             "- Claude说很晚了让用户快去睡觉。（Fails rule 2: describes dialogue state, not a stable fact or stated recommendation/position）\n"
             "- 用户存在用技术开发来逃避投递简历的心理避难模式。（Fails rule 3: infers psychological motives / abduction）\n\n"
             f"Category: {category}\n\n"
@@ -112,6 +111,8 @@ class _LLMExtractor:
         seen: set[str] = set()
         for line in response.splitlines():
             line = line.strip().strip("-\u2022*•").strip()
+            # Strip leading list numbers e.g. "1. ", "1、", "1) ", "1.1. ", etc.
+            line = re.sub(r"^\d+([.、\)\s]|\.\d+)*\s*", "", line).strip()
             if len(line) < 12:
                 continue
             if line in seen:
