@@ -53,8 +53,9 @@ class _LLMExtractor:
     """LLM-based atomic-fact extractor.
 
     The actual API call is injected via ``model_call`` so the core package
-    does not depend on any SDK. If the call fails, an empty list is returned
-    and the caller is expected to leave an orphan document for retry.
+    does not depend on any SDK. Provider failures are allowed to propagate so
+    the storage layer can preserve an orphan document *and* report why the
+    extraction needs retrying.
     """
 
     kind: str = "llm"
@@ -64,10 +65,7 @@ class _LLMExtractor:
 
     def extract(self, raw_text: str, category: str) -> list[str]:
         prompt = self._build_prompt(raw_text, category)
-        try:
-            response = self.model_call(prompt)
-        except Exception:
-            return []
+        response = self.model_call(prompt)
         return self._parse_response(response)
 
     def _build_prompt(self, raw_text: str, category: str) -> str:

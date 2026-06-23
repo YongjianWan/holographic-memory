@@ -12,7 +12,6 @@ Config in $HERMES_HOME/config.yaml (profile-scoped):
       auto_extract: false
       default_trust: 0.5
       min_trust_threshold: 0.3
-      temporal_decay_half_life: 0
       near_duplicate_threshold: 0.8          # Jaccard threshold for write-time dedup
 """
 
@@ -116,12 +115,35 @@ def _load_plugin_config() -> dict:
 
 def _resolve_model_call() -> Callable[[str], str] | None:
     import os
+
+    model = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash")
+
+    # Retain extraction is intentionally pinned to DeepSeek. Hermes owns
+    # credential resolution, but it must not silently substitute the main
+    # provider or another fallback model when DeepSeek is unavailable.
+    try:
+        from agent.auxiliary_client import call_llm
+
+        def model_call(prompt: str) -> str:
+            resp = call_llm(
+                provider="deepseek",
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+            )
+            return resp.choices[0].message.content or ""
+
+        return model_call
+    except ImportError:
+        # Standalone scripts may run outside the Hermes package. Keep direct
+        # environment-variable providers as a compatibility fallback.
+        pass
+
     ds_key = os.environ.get("DEEPSEEK_API_KEY")
     if ds_key:
         try:
             from openai import OpenAI
             base_url = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-            model = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash")
             client = OpenAI(api_key=ds_key, base_url=base_url)
             def model_call(prompt: str) -> str:
                 resp = client.chat.completions.create(
@@ -134,24 +156,6 @@ def _resolve_model_call() -> Callable[[str], str] | None:
             return model_call
         except Exception as e:
             logger.exception("Failed to initialize DeepSeek model call: %s", e)
-
-    oa_key = os.environ.get("OPENAI_API_KEY")
-    if oa_key:
-        try:
-            from openai import OpenAI
-            model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-            client = OpenAI(api_key=oa_key)
-            def model_call(prompt: str) -> str:
-                resp = client.chat.completions.create(
-                    model=model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0,
-                    stream=False,
-                )
-                return resp.choices[0].message.content or ""
-            return model_call
-        except Exception as e:
-            logger.exception("Failed to initialize OpenAI model call: %s", e)
 
     return None
 
@@ -202,9 +206,9 @@ class HolographicMemoryProvider(MemoryProvider):
             {"key": "hrr_dim", "description": "HRR vector dimensions", "default": "1024"},
             {"key": "near_duplicate_threshold", "description": "Jaccard threshold for merging near-duplicate facts on write", "default": "0.8"},
             {"key": "retain_max_chunk_tokens", "description": "Max tokens per chunk for document retention (LLM context window guard)", "default": "6000"},
-            {"key": "gc_interval_days", "description": "Days between lazy trust-decay GC runs (0 to disable)", "default": "7"},
-            {"key": "gc_decay_max_days", "description": "Days for trust score to decay to gc_decay_floor", "default": "365"},
-            {"key": "gc_decay_floor", "description": "Minimum multiplicative recency factor for trust decay", "default": "0.1"},
+            {"key": "gc_interval_days", "description": "Days between lazy retrieval-recency refreshes (0 to disable)", "default": "7"},
+            {"key": "gc_decay_max_days", "description": "Days for retrieval recency to reach gc_decay_floor", "default": "365"},
+            {"key": "gc_decay_floor", "description": "Minimum retrieval recency multiplier", "default": "0.1"},
         ]
 
     def initialize(self, session_id: str, **kwargs) -> None:
@@ -220,7 +224,6 @@ class HolographicMemoryProvider(MemoryProvider):
             db_path = db_path.replace("${HERMES_HOME}", _hermes_home)
         default_trust = float(self._config.get("default_trust", 0.5))
         hrr_dim = int(self._config.get("hrr_dim", 1024))
-        temporal_decay = int(self._config.get("temporal_decay_half_life", 0))
         near_duplicate_threshold = float(self._config.get("near_duplicate_threshold", 0.8))
         retain_max_chunk_tokens = int(self._config.get("retain_max_chunk_tokens", 6000))
         gc_interval_days = float(self._config.get("gc_interval_days", 7.0))
@@ -245,8 +248,9 @@ class HolographicMemoryProvider(MemoryProvider):
         self._retain_max_chunk_tokens = max(256, retain_max_chunk_tokens)
         self._retriever = FactRetriever(
             store=self._store,
-            temporal_decay_half_life=temporal_decay,
             hrr_dim=hrr_dim,
+            recency_max_days=gc_decay_max_days,
+            recency_floor=gc_decay_floor,
         )
         self._session_id = session_id
 

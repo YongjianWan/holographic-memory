@@ -101,6 +101,37 @@ class TestLLMConsolidator:
 
 
 class TestConsolidationTransaction:
+    def test_failure_rolls_back_new_fact_entities_and_soft_deletes(
+        self, store: MemoryStore, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fid1 = store.add_fact('"Mia" is a Senior Dev', category="project")
+        fid2 = store.add_fact('"Mia" became a Principal Dev', category="project")
+
+        def mock_model(_prompt: str) -> str:
+            return json.dumps({
+                "consolidations": [{
+                    "input_ids": [fid1, fid2],
+                    "consolidated_content": '"Mia" is a Principal Dev',
+                }]
+            })
+
+        def fail_vector(*_args, **_kwargs):
+            raise RuntimeError("vector generation failed")
+
+        monkeypatch.setattr(store, "_compute_hrr_vector", fail_vector)
+        report = store.consolidate_facts(
+            model_call=mock_model,
+            category="project",
+            generic_threshold=15,
+        )
+
+        assert report["facts_created"] == 0
+        rows = store._conn.execute(
+            "SELECT fact_id, content, merged_into FROM facts ORDER BY fact_id"
+        ).fetchall()
+        assert [row["fact_id"] for row in rows] == [fid1, fid2]
+        assert all(row["merged_into"] is None for row in rows)
+
     def test_consolidate_facts_success(self, store: MemoryStore) -> None:
         # Add source document
         store._conn.execute("INSERT INTO documents (raw_text, text_hash) VALUES ('Mia profile', 'hash1')")
@@ -313,5 +344,4 @@ class TestConsolidationTransaction:
         for pair in contradict_results:
             assert pair["fact_a"]["fact_id"] not in (fid1, fid2)
             assert pair["fact_b"]["fact_id"] not in (fid1, fid2)
-
 

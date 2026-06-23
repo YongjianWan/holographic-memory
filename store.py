@@ -204,6 +204,7 @@ class MemoryStore:
         )
         self._lock = threading.RLock()
         self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA busy_timeout = 10000")
         self._init_db()
         self._gc = gc_module.GarbageCollector(
             self._conn,
@@ -323,6 +324,8 @@ class MemoryStore:
         content: str,
         tags: str,
         source_doc_id: int | None = None,
+        *,
+        commit: bool = True,
     ) -> int:
         """Merge a newly seen fact into an existing one.
 
@@ -367,7 +370,11 @@ class MemoryStore:
         new_trust = max(old_trust, self.default_trust)
 
         if replace_content:
-            try:
+            collision = self._conn.execute(
+                "SELECT 1 FROM facts WHERE content = ? AND fact_id != ?",
+                (content, existing_id),
+            ).fetchone()
+            if collision is None:
                 self._conn.execute(
                     """
                     UPDATE facts
@@ -381,7 +388,6 @@ class MemoryStore:
                     """,
                     (content, merged_tags, new_trust, merged_source_doc_id, existing_id),
                 )
-                self._conn.commit()
                 # Re-extract entities and recompute HRR for the new wording.
                 self._conn.execute(
                     "DELETE FROM fact_entities WHERE fact_id = ?",
@@ -389,15 +395,18 @@ class MemoryStore:
                 )
                 new_entity_names = entities.extract_entities(content)
                 for name in new_entity_names:
-                    entity_id = entities.resolve_entity(self._conn, name)
-                    entities.link_fact_entity(self._conn, existing_id, entity_id)
+                    entity_id = entities.resolve_entity(
+                        self._conn, name, commit=False
+                    )
+                    entities.link_fact_entity(
+                        self._conn, existing_id, entity_id, commit=False
+                    )
                 self._warn_hrr_capacity(content, new_entity_names)
-                self._compute_hrr_vector(existing_id, content)
-                self._rebuild_bank(category)
+                self._compute_hrr_vector(existing_id, content, commit=False)
+                self._rebuild_bank(category, commit=False)
+                if commit:
+                    self._conn.commit()
                 return existing_id
-            except sqlite3.IntegrityError:
-                # New content collides with another row; fall through to metadata-only merge.
-                self._conn.rollback()
 
         # Metadata-only merge (content unchanged or UNIQUE collision).
         self._conn.execute(
@@ -412,7 +421,8 @@ class MemoryStore:
             """,
             (merged_tags, new_trust, merged_source_doc_id, existing_id),
         )
-        self._conn.commit()
+        if commit:
+            self._conn.commit()
         return existing_id
 
     def _find_consolidation_candidates(
@@ -461,14 +471,25 @@ class MemoryStore:
                 raise ValueError("content must not be empty")
 
             initial_trust = _clamp_trust(trust) if trust is not None else self.default_trust
-
-            # First line of defence: lexical near-duplicate detection.
-            dup_id = self._find_near_duplicate(content, category)
-            if dup_id is not None:
-                return self._merge_into(dup_id, content, tags, source_doc_id)
-
-            # Exact duplicate fallback (UNIQUE constraint).
             try:
+                # Public store operations own their transaction boundary.
+                # Commit any caller-issued SQL first so BEGIN IMMEDIATE can
+                # acquire the cross-process write lock deterministically.
+                if self._conn.in_transaction:
+                    self._conn.commit()
+                # Serialize the check-then-write sequence across processes.
+                self._conn.execute("BEGIN IMMEDIATE")
+
+                # First line of defence: lexical near-duplicate detection.
+                dup_id = self._find_near_duplicate(content, category)
+                if dup_id is not None:
+                    fact_id = self._merge_into(
+                        dup_id, content, tags, source_doc_id, commit=False
+                    )
+                    self._conn.commit()
+                    return fact_id
+
+                # Exact duplicate fallback (UNIQUE constraint).
                 cur = self._conn.execute(
                     """
                     INSERT INTO facts (content, category, tags, trust_score, source_doc_id)
@@ -476,37 +497,43 @@ class MemoryStore:
                     """,
                     (content, category, tags, initial_trust, source_doc_id),
                 )
-                self._conn.commit()
                 fact_id: int = cur.lastrowid  # type: ignore[assignment]
+
+                # Entity extraction and linking.
+                entity_names = entities.extract_entities(content)
+                for name in entity_names:
+                    entity_id = entities.resolve_entity(
+                        self._conn, name, commit=False
+                    )
+                    entities.link_fact_entity(
+                        self._conn, fact_id, entity_id, commit=False
+                    )
+
+                self._warn_hrr_capacity(content, entity_names)
+                self._compute_hrr_vector(fact_id, content, commit=False)
+                self._rebuild_bank(category, commit=False)
+                self._conn.commit()
+                return fact_id
             except sqlite3.IntegrityError:
-                # Duplicate content — return existing id
+                self._conn.rollback()
                 row = self._conn.execute(
                     "SELECT fact_id, merged_into FROM facts WHERE content = ?", (content,)
                 ).fetchone()
+                if row is None:
+                    raise
                 existing_id = int(row["fact_id"])
-                # If it was soft-deleted, reactivate it!
                 if row["merged_into"] is not None:
+                    self._conn.execute("BEGIN IMMEDIATE")
                     self._conn.execute(
-                        "UPDATE facts SET merged_into = NULL, trust_score = ?, updated_at = CURRENT_TIMESTAMP WHERE fact_id = ?",
-                        (initial_trust, existing_id)
+                        "UPDATE facts SET merged_into = NULL, trust_score = ?, "
+                        "updated_at = CURRENT_TIMESTAMP WHERE fact_id = ?",
+                        (initial_trust, existing_id),
                     )
                     self._conn.commit()
                 return existing_id
-
-            # Entity extraction and linking
-            entity_names = entities.extract_entities(content)
-            for name in entity_names:
-                entity_id = entities.resolve_entity(self._conn, name)
-                entities.link_fact_entity(self._conn, fact_id, entity_id)
-
-            # Capacity warning before committing the vector.
-            self._warn_hrr_capacity(content, entity_names)
-
-            # Compute HRR vector after entity linking
-            self._compute_hrr_vector(fact_id, content)
-            self._rebuild_bank(category)
-
-            return fact_id
+            except Exception:
+                self._conn.rollback()
+                raise
 
     def retain_document(
         self,
@@ -564,14 +591,22 @@ class MemoryStore:
         chunks = _chunk_text(raw_text, max_chunk_tokens)
 
         fact_ids: list[int] = []
+        extraction_errors: list[dict] = []
         is_fallback = extractor.kind == "fallback"
         fact_trust = _FALLBACK_TRUST if is_fallback else None
 
-        for chunk in chunks:
+        for chunk_index, chunk in enumerate(chunks, start=1):
             try:
                 chunk_facts = extractor.extract(chunk, category)
-            except Exception:
+            except Exception as exc:
                 # A failed chunk should not kill the whole document.
+                extraction_errors.append(
+                    {
+                        "chunk": chunk_index,
+                        "error_type": type(exc).__name__,
+                        "message": str(exc)[:500],
+                    }
+                )
                 continue
             for fact in chunk_facts:
                 fact = fact.strip()
@@ -589,13 +624,19 @@ class MemoryStore:
                     # A single bad fact should not kill the whole batch.
                     continue
 
-        status = "document_stored_no_facts" if not fact_ids else "ok"
+        if fact_ids:
+            status = "ok"
+        elif extraction_errors:
+            status = "document_stored_extraction_failed"
+        else:
+            status = "document_stored_no_facts"
         return {
             "doc_id": doc_id,
             "facts_added": len(fact_ids),
             "extractor_kind": extractor.kind,
             "fact_ids": fact_ids,
             "chunks_processed": len(chunks),
+            "extraction_errors": extraction_errors,
             "status": status,
         }
 
@@ -644,7 +685,12 @@ class MemoryStore:
                 ids = [r["fact_id"] for r in results]
                 placeholders = ",".join("?" * len(ids))
                 self._conn.execute(
-                    f"UPDATE facts SET retrieval_count = retrieval_count + 1 WHERE fact_id IN ({placeholders})",
+                    f"""
+                    UPDATE facts
+                    SET retrieval_count = retrieval_count + 1,
+                        last_accessed_at = CURRENT_TIMESTAMP
+                    WHERE fact_id IN ({placeholders})
+                    """,
                     ids,
                 )
                 self._conn.commit()
@@ -664,56 +710,67 @@ class MemoryStore:
         Returns True if the row existed, False otherwise.
         """
         with self._lock:
-            row = self._conn.execute(
-                "SELECT fact_id, trust_score FROM facts WHERE fact_id = ?", (fact_id,)
-            ).fetchone()
-            if row is None:
-                return False
+            try:
+                if self._conn.in_transaction:
+                    self._conn.commit()
+                self._conn.execute("BEGIN IMMEDIATE")
 
-            assignments: list[str] = ["updated_at = CURRENT_TIMESTAMP"]
-            params: list = []
+                row = self._conn.execute(
+                    "SELECT fact_id, trust_score, category FROM facts WHERE fact_id = ?",
+                    (fact_id,),
+                ).fetchone()
+                if row is None:
+                    self._conn.rollback()
+                    return False
 
-            if content is not None:
-                assignments.append("content = ?")
-                params.append(content.strip())
-            if tags is not None:
-                assignments.append("tags = ?")
-                params.append(tags)
-            if category is not None:
-                assignments.append("category = ?")
-                params.append(category)
-            if trust_delta is not None:
-                new_trust = _clamp_trust(row["trust_score"] + trust_delta)
-                assignments.append("trust_score = ?")
-                params.append(new_trust)
+                old_category = row["category"]
+                assignments: list[str] = ["updated_at = CURRENT_TIMESTAMP"]
+                params: list = []
 
-            params.append(fact_id)
-            self._conn.execute(
-                f"UPDATE facts SET {', '.join(assignments)} WHERE fact_id = ?",
-                params,
-            )
-            self._conn.commit()
+                if content is not None:
+                    content = content.strip()
+                    if not content:
+                        raise ValueError("content must not be empty")
+                    assignments.append("content = ?")
+                    params.append(content)
+                if tags is not None:
+                    assignments.append("tags = ?")
+                    params.append(tags)
+                if category is not None:
+                    assignments.append("category = ?")
+                    params.append(category)
+                if trust_delta is not None:
+                    new_trust = _clamp_trust(row["trust_score"] + trust_delta)
+                    assignments.append("trust_score = ?")
+                    params.append(new_trust)
 
-            # If content changed, re-extract entities
-            if content is not None:
+                params.append(fact_id)
                 self._conn.execute(
-                    "DELETE FROM fact_entities WHERE fact_id = ?", (fact_id,)
+                    f"UPDATE facts SET {', '.join(assignments)} WHERE fact_id = ?",
+                    params,
                 )
-                for name in self._extract_entities(content):
-                    entity_id = self._resolve_entity(name)
-                    self._link_fact_entity(fact_id, entity_id)
+
+                if content is not None:
+                    self._conn.execute(
+                        "DELETE FROM fact_entities WHERE fact_id = ?", (fact_id,)
+                    )
+                    for name in self._extract_entities(content):
+                        entity_id = self._resolve_entity(name, commit=False)
+                        self._link_fact_entity(
+                            fact_id, entity_id, commit=False
+                        )
+                    self._compute_hrr_vector(fact_id, content, commit=False)
+
+                new_category = category or old_category
+                self._rebuild_bank(new_category, commit=False)
+                if old_category != new_category:
+                    self._rebuild_bank(old_category, commit=False)
+
                 self._conn.commit()
-
-            # Recompute HRR vector if content changed
-            if content is not None:
-                self._compute_hrr_vector(fact_id, content)
-            # Rebuild bank for relevant category
-            cat = category or self._conn.execute(
-                "SELECT category FROM facts WHERE fact_id = ?", (fact_id,)
-            ).fetchone()["category"]
-            self._rebuild_bank(cat)
-
-            return True
+                return True
+            except Exception:
+                self._conn.rollback()
+                raise
 
     def remove_fact(self, fact_id: int) -> bool:
         """Delete a fact and its entity links. Returns True if the row existed."""
@@ -809,6 +866,28 @@ class MemoryStore:
         edit_threshold: float = 0.85,
         token_threshold: float = 0.9,
     ) -> dict:
+        """Normalize the entity graph under one cross-process write lock."""
+        with self._lock:
+            # The candidate graph must be read after acquiring the write lock;
+            # otherwise two instances can plan from the same stale entity set.
+            self._conn.commit()
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                report = self._normalize_entities_in_transaction(
+                    edit_threshold=edit_threshold,
+                    token_threshold=token_threshold,
+                )
+                self._conn.commit()
+                return report
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def _normalize_entities_in_transaction(
+        self,
+        edit_threshold: float = 0.85,
+        token_threshold: float = 0.9,
+    ) -> dict:
         """Merge fragmented entity variants into canonical entities.
 
         Uses conservative string edit distance and token overlap to cluster
@@ -882,91 +961,104 @@ class MemoryStore:
             categories_to_rebuild: set[str] = set()
             entities_merged = 0
 
-            for root, members in merge_clusters.items():
-                # Sort members to choose canonical:
-                # 1. most specific name (digits/punctuation/length)
-                # 2. most fact links
-                # 3. earliest created
-                # 4. lowest entity_id
-                sorted_members = sorted(
-                    members,
-                    key=lambda eid: (
-                        -entities.entity_specificity(entities_by_id[eid]["name"]),
-                        -fact_counts.get(eid, 0),
-                        entities_by_id[eid]["created_at"] or "",
-                        eid,
+            # Normalization changes entity identity, fact links, fact vectors,
+            # and category banks as one logical operation. Taking the write
+            # lock before the first mutation prevents other instances from
+            # observing or extending a half-normalized graph.
+            self._conn.execute("SAVEPOINT normalize_entities")
+            try:
+                for root, members in merge_clusters.items():
+                    # Sort members to choose canonical:
+                    # 1. most specific name (digits/punctuation/length)
+                    # 2. most fact links
+                    # 3. earliest created
+                    # 4. lowest entity_id
+                    sorted_members = sorted(
+                        members,
+                        key=lambda eid: (
+                            -entities.entity_specificity(entities_by_id[eid]["name"]),
+                            -fact_counts.get(eid, 0),
+                            entities_by_id[eid]["created_at"] or "",
+                            eid,
+                        )
                     )
-                )
-                canonical_id = sorted_members[0]
-                canonical_entity = entities_by_id[canonical_id]
+                    canonical_id = sorted_members[0]
+                    canonical_entity = entities_by_id[canonical_id]
 
-                # Collect all unique names in the cluster (case-insensitive dedup).
-                unique_names: dict[str, str] = {}  # lowercase -> original
-                for eid in sorted_members:
-                    ent = entities_by_id[eid]
-                    for raw_name in [ent["name"]] + entities._split_aliases(
-                        ent["aliases"]
-                    ):
-                        key = raw_name.strip().lower()
-                        if key and key not in unique_names:
-                            unique_names[key] = raw_name.strip()
+                    # Collect all unique names in the cluster (case-insensitive dedup).
+                    unique_names: dict[str, str] = {}  # lowercase -> original
+                    for eid in sorted_members:
+                        ent = entities_by_id[eid]
+                        for raw_name in [ent["name"]] + entities._split_aliases(
+                            ent["aliases"]
+                        ):
+                            key = raw_name.strip().lower()
+                            if key and key not in unique_names:
+                                unique_names[key] = raw_name.strip()
 
-                # Aliases = all unique names except the canonical display name.
-                canonical_key = canonical_entity["name"].strip().lower()
-                alias_names = [
-                    name for key, name in unique_names.items() if key != canonical_key
-                ]
-                alias_str = ", ".join(alias_names)
+                    # Aliases = all unique names except the canonical display name.
+                    canonical_key = canonical_entity["name"].strip().lower()
+                    alias_names = [
+                        name for key, name in unique_names.items() if key != canonical_key
+                    ]
+                    alias_str = ", ".join(alias_names)
 
-                # Update canonical entity aliases.
-                self._conn.execute(
-                    "UPDATE entities SET aliases = ? WHERE entity_id = ?",
-                    (alias_str, canonical_id),
-                )
-
-                # Repoint fact_entities and track affected facts.
-                for eid in sorted_members[1:]:
-                    fact_rows = self._conn.execute(
-                        "SELECT fact_id FROM fact_entities WHERE entity_id = ?",
-                        (eid,),
-                    ).fetchall()
-                    for fr in fact_rows:
-                        affected_fact_ids.add(int(fr["fact_id"]))
-
-                    # Move links to canonical, ignoring duplicates.
+                    # Update canonical entity aliases.
                     self._conn.execute(
-                        """
-                        INSERT OR IGNORE INTO fact_entities (fact_id, entity_id)
-                        SELECT fact_id, ? FROM fact_entities WHERE entity_id = ?
-                        """,
-                        (canonical_id, eid),
+                        "UPDATE entities SET aliases = ? WHERE entity_id = ?",
+                        (alias_str, canonical_id),
                     )
-                    self._conn.execute(
-                        "DELETE FROM fact_entities WHERE entity_id = ?",
-                        (eid,),
-                    )
-                    self._conn.execute(
-                        "DELETE FROM entities WHERE entity_id = ?",
-                        (eid,),
-                    )
-                    entities_merged += 1
 
-            self._conn.commit()
+                    # Repoint fact_entities and track affected facts.
+                    for eid in sorted_members[1:]:
+                        fact_rows = self._conn.execute(
+                            "SELECT fact_id FROM fact_entities WHERE entity_id = ?",
+                            (eid,),
+                        ).fetchall()
+                        for fr in fact_rows:
+                            affected_fact_ids.add(int(fr["fact_id"]))
 
-            # Recompute HRR vectors for affected facts.
-            if affected_fact_ids and self._hrr_available:
-                for fact_id in affected_fact_ids:
-                    row = self._conn.execute(
-                        "SELECT content, category FROM facts WHERE fact_id = ?",
-                        (fact_id,),
-                    ).fetchone()
-                    if row is None:
-                        continue
-                    self._compute_hrr_vector(fact_id, row["content"])
-                    categories_to_rebuild.add(row["category"])
+                        # Move links to canonical, ignoring duplicates.
+                        self._conn.execute(
+                            """
+                            INSERT OR IGNORE INTO fact_entities (fact_id, entity_id)
+                            SELECT fact_id, ? FROM fact_entities WHERE entity_id = ?
+                            """,
+                            (canonical_id, eid),
+                        )
+                        self._conn.execute(
+                            "DELETE FROM fact_entities WHERE entity_id = ?",
+                            (eid,),
+                        )
+                        self._conn.execute(
+                            "DELETE FROM entities WHERE entity_id = ?",
+                            (eid,),
+                        )
+                        entities_merged += 1
 
-                for category in categories_to_rebuild:
-                    self._rebuild_bank(category)
+                # Recompute HRR vectors for affected facts inside the same
+                # transaction as the entity/link mutations.
+                if affected_fact_ids and self._hrr_available:
+                    for fact_id in affected_fact_ids:
+                        row = self._conn.execute(
+                            "SELECT content, category FROM facts WHERE fact_id = ?",
+                            (fact_id,),
+                        ).fetchone()
+                        if row is None:
+                            continue
+                        self._compute_hrr_vector(
+                            fact_id, row["content"], commit=False
+                        )
+                        categories_to_rebuild.add(row["category"])
+
+                    for category in categories_to_rebuild:
+                        self._rebuild_bank(category, commit=False)
+
+                self._conn.execute("RELEASE SAVEPOINT normalize_entities")
+            except Exception:
+                self._conn.execute("ROLLBACK TO SAVEPOINT normalize_entities")
+                self._conn.execute("RELEASE SAVEPOINT normalize_entities")
+                raise
 
             return {
                 "clusters_merged": len(merge_clusters),
@@ -1020,19 +1112,25 @@ class MemoryStore:
         """Extract entity candidates from text."""
         return entities.extract_entities(text)
 
-    def _resolve_entity(self, name: str) -> int:
+    def _resolve_entity(self, name: str, *, commit: bool = True) -> int:
         """Find or create an entity and return its id."""
-        return entities.resolve_entity(self._conn, name)
+        return entities.resolve_entity(self._conn, name, commit=commit)
 
     def _resolve_entity_id(self, name: str) -> int | None:
         """Find an existing entity by name or alias (read-only)."""
         return entities.resolve_entity_id(self._conn, name)
 
-    def _link_fact_entity(self, fact_id: int, entity_id: int) -> None:
+    def _link_fact_entity(
+        self, fact_id: int, entity_id: int, *, commit: bool = True
+    ) -> None:
         """Link a fact to an entity."""
-        entities.link_fact_entity(self._conn, fact_id, entity_id)
+        entities.link_fact_entity(
+            self._conn, fact_id, entity_id, commit=commit
+        )
 
-    def _compute_hrr_vector(self, fact_id: int, content: str) -> None:
+    def _compute_hrr_vector(
+        self, fact_id: int, content: str, *, commit: bool = True
+    ) -> None:
         """Compute and store HRR vector for a fact. No-op if numpy unavailable."""
         with self._lock:
             if not self._hrr_available:
@@ -1053,9 +1151,10 @@ class MemoryStore:
                 "UPDATE facts SET hrr_vector = ? WHERE fact_id = ?",
                 (hrr.phases_to_bytes(vector), fact_id),
             )
-            self._conn.commit()
+            if commit:
+                self._conn.commit()
 
-    def _rebuild_bank(self, category: str) -> None:
+    def _rebuild_bank(self, category: str, *, commit: bool = True) -> None:
         """Full rebuild of a category's memory bank from all its fact vectors."""
         with self._lock:
             if not self._hrr_available:
@@ -1069,7 +1168,8 @@ class MemoryStore:
 
             if not rows:
                 self._conn.execute("DELETE FROM memory_banks WHERE bank_name = ?", (bank_name,))
-                self._conn.commit()
+                if commit:
+                    self._conn.commit()
                 return
 
             vectors = [hrr.bytes_to_phases(row["hrr_vector"]) for row in rows]
@@ -1091,7 +1191,8 @@ class MemoryStore:
                 """,
                 (bank_name, hrr.phases_to_bytes(bank_vector), self.hrr_dim, fact_count),
             )
-            self._conn.commit()
+            if commit:
+                self._conn.commit()
 
     def rebuild_all_vectors(self, dim: int | None = None) -> int:
         """Recompute all HRR vectors + banks from text. For recovery/migration.
@@ -1128,17 +1229,35 @@ class MemoryStore:
         return dict(row)
 
     def run_gc(self, force: bool = False) -> dict:
-        """Run lazy garbage collection (currently trust-decay).
+        """Run the non-blocking lazy-maintenance checkpoint.
 
         This is a thin forwarder to ``GarbageCollector.maybe_run`` so that
         callers in __init__.py do not need to import memory_gc.py directly.
         """
         return self._gc.maybe_run(force=force)
 
+    def record_retrievals(self, fact_ids: list[int] | set[int]) -> None:
+        """Record successful recall without changing fact content timestamps."""
+        if not fact_ids:
+            return
+        with self._lock:
+            ids = list(dict.fromkeys(fact_ids))
+            placeholders = ",".join("?" * len(ids))
+            self._conn.execute(
+                f"""
+                UPDATE facts
+                SET retrieval_count = retrieval_count + 1,
+                    last_accessed_at = CURRENT_TIMESTAMP
+                WHERE fact_id IN ({placeholders})
+                """,
+                ids,
+            )
+            self._conn.commit()
+
     def close(self) -> None:
         """Checkpoint WAL and close the database connection."""
         try:
-            self._conn.execute("PRAGMA wal_checkpoint(FULL)")
+            self._conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
             self._conn.commit()
         except Exception:
             pass

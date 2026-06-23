@@ -48,6 +48,45 @@ class TestRecencyFactor:
 
 
 class TestGarbageCollectorUnit:
+    def test_two_connections_busy_skip_writes_no_log_then_retries(
+        self, tmp_path: Path
+    ):
+        """A second SQLite connection must not acknowledge work it did not run.
+
+        This deliberately uses two independent connections to the same file:
+        conn1 holds BEGIN IMMEDIATE while conn2 attempts the GC writer claim.
+        """
+        db_path = tmp_path / "shared.db"
+        conn1 = sqlite3.connect(db_path, timeout=10)
+        conn1.row_factory = sqlite3.Row
+        conn1.executescript(_SCHEMA)
+        conn2 = sqlite3.connect(db_path, timeout=10)
+        conn2.row_factory = sqlite3.Row
+
+        conn1.execute("BEGIN IMMEDIATE")
+        try:
+            gc = GarbageCollector(conn2, interval_days=0)
+            started = datetime.now(timezone.utc)
+            result = gc.maybe_run(force=True)
+            elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+            log_count = conn2.execute("SELECT COUNT(*) FROM gc_log").fetchone()[0]
+        finally:
+            conn1.rollback()
+
+        assert result == {"ran": False, "reason": "busy"}
+        assert elapsed < 1.0
+        assert log_count == 0
+
+        retry = gc.maybe_run(force=True)
+        finished_count = conn2.execute(
+            "SELECT COUNT(*) FROM gc_log WHERE finished_at IS NOT NULL"
+        ).fetchone()[0]
+        conn1.close()
+        conn2.close()
+
+        assert retry["ran"] is True
+        assert finished_count == 1
+
     def test_disabled_when_interval_zero(self):
         conn = _make_in_memory_store()
         gc = GarbageCollector(conn, interval_days=0)
@@ -59,7 +98,7 @@ class TestGarbageCollectorUnit:
         # Insert a recent finished log entry.
         conn.execute(
             "INSERT INTO gc_log(gc_type, started_at, finished_at, facts_processed, facts_updated) VALUES (?, ?, ?, ?, ?)",
-            ("trust_decay", _days_ago_iso(0.5), _days_ago_iso(0.5), 1, 0),
+            ("maintenance", _days_ago_iso(0.5), _days_ago_iso(0.5), 1, 0),
         )
         conn.commit()
         result = gc.maybe_run()
@@ -71,68 +110,28 @@ class TestGarbageCollectorUnit:
         gc = GarbageCollector(conn, interval_days=7)
         conn.execute(
             "INSERT INTO gc_log(gc_type, started_at, finished_at, facts_processed, facts_updated) VALUES (?, ?, ?, ?, ?)",
-            ("trust_decay", _days_ago_iso(0.5), _days_ago_iso(0.5), 1, 0),
+            ("maintenance", _days_ago_iso(0.5), _days_ago_iso(0.5), 1, 0),
         )
         conn.execute(
-            "INSERT INTO facts(content, trust_score, updated_at) VALUES (?, ?, ?)",
+            "INSERT INTO facts(content, trust_score, last_accessed_at) VALUES (?, ?, ?)",
             ("test fact", 0.8, _days_ago_iso(180)),
         )
         conn.commit()
         result = gc.maybe_run(force=True)
         assert result["ran"] is True
         assert result["facts_processed"] == 1
-        assert result["facts_updated"] == 1
-
-    def test_decay_applied_to_active_facts(self):
-        conn = _make_in_memory_store()
-        gc = GarbageCollector(conn, interval_days=0, decay_max_days=365, decay_floor=0.1)
-        conn.execute(
-            "INSERT INTO facts(content, trust_score, updated_at, created_at) VALUES (?, ?, ?, ?)",
-            ("old fact", 0.8, _days_ago_iso(180), _days_ago_iso(200)),
-        )
-        conn.commit()
-        result = gc.maybe_run(force=True)
-        assert result["facts_processed"] == 1
-        assert result["facts_updated"] == 1
-        row = conn.execute("SELECT trust_score FROM facts").fetchone()
-        # 180 days -> recency ~0.505, 0.8 * 0.505 ~= 0.404
-        assert row["trust_score"] == pytest.approx(0.404, abs=0.01)
-
-    def test_uses_updated_at_over_created_at(self):
-        conn = _make_in_memory_store()
-        gc = GarbageCollector(conn, interval_days=0, decay_max_days=365, decay_floor=0.1)
-        # updated_at recent, created_at old -> almost no decay
-        conn.execute(
-            "INSERT INTO facts(content, trust_score, updated_at, created_at) VALUES (?, ?, ?, ?)",
-            ("recently touched", 0.8, _days_ago_iso(1), _days_ago_iso(300)),
-        )
-        conn.commit()
-        gc.maybe_run(force=True)
-        row = conn.execute("SELECT trust_score FROM facts").fetchone()
-        assert row["trust_score"] == pytest.approx(0.797, abs=0.01)
+        assert result["facts_updated"] == 0
 
     def test_merged_facts_are_skipped(self):
         conn = _make_in_memory_store()
         gc = GarbageCollector(conn, interval_days=0)
         conn.execute(
-            "INSERT INTO facts(fact_id, content, trust_score, updated_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO facts(fact_id, content, trust_score, last_accessed_at) VALUES (?, ?, ?, ?)",
             (1, "active", 0.8, _days_ago_iso(180)),
         )
         conn.execute(
-            "INSERT INTO facts(fact_id, content, trust_score, updated_at, merged_into) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO facts(fact_id, content, trust_score, last_accessed_at, merged_into) VALUES (?, ?, ?, ?, ?)",
             (2, "merged", 0.8, _days_ago_iso(180), 1),
-        )
-        conn.commit()
-        result = gc.maybe_run(force=True)
-        assert result["facts_processed"] == 1
-        assert result["facts_updated"] == 1
-
-    def test_no_update_when_change_below_epsilon(self):
-        conn = _make_in_memory_store()
-        gc = GarbageCollector(conn, interval_days=0, decay_max_days=365, decay_floor=0.1)
-        conn.execute(
-            "INSERT INTO facts(content, trust_score, updated_at) VALUES (?, ?, ?)",
-            ("barely old", 0.8, _days_ago_iso(0.1)),
         )
         conn.commit()
         result = gc.maybe_run(force=True)
@@ -143,17 +142,17 @@ class TestGarbageCollectorUnit:
         conn = _make_in_memory_store()
         gc = GarbageCollector(conn, interval_days=0)
         conn.execute(
-            "INSERT INTO facts(content, trust_score, updated_at) VALUES (?, ?, ?)",
+            "INSERT INTO facts(content, trust_score, last_accessed_at) VALUES (?, ?, ?)",
             ("fact", 0.5, _days_ago_iso(180)),
         )
         conn.commit()
         gc.maybe_run(force=True)
         rows = conn.execute("SELECT * FROM gc_log").fetchall()
         assert len(rows) == 1
-        assert rows[0]["gc_type"] == "trust_decay"
+        assert rows[0]["gc_type"] == "maintenance"
         assert rows[0]["finished_at"] is not None
         assert rows[0]["facts_processed"] == 1
-        assert rows[0]["facts_updated"] == 1
+        assert rows[0]["facts_updated"] == 0
 
 
 class TestMemoryStoreGcIntegration:
@@ -170,7 +169,7 @@ class TestMemoryStoreGcIntegration:
             fact_id = store.add_fact("old fact", category="general")
             # Manually age the fact.
             store._conn.execute(
-                "UPDATE facts SET updated_at = ? WHERE fact_id = ?",
+                "UPDATE facts SET last_accessed_at = ? WHERE fact_id = ?",
                 (_days_ago_iso(180), fact_id),
             )
             store._conn.commit()
@@ -178,12 +177,7 @@ class TestMemoryStoreGcIntegration:
             result = store.run_gc(force=True)
             assert result["ran"] is True
             assert result["facts_processed"] == 1
-            assert result["facts_updated"] == 1
-
-            row = store._conn.execute(
-                "SELECT trust_score FROM facts WHERE fact_id = ?", (fact_id,)
-            ).fetchone()
-            assert row["trust_score"] == pytest.approx(0.404, abs=0.01)
+            assert result["facts_updated"] == 0
             store.close()
 
     def test_gc_disabled_by_interval_zero(self):

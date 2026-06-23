@@ -48,7 +48,7 @@ Holographic Memory 是 hermes-agent 的一个 **MemoryProvider 插件**：用本
 C:/Users/sdses/Desktop/随机小项目/holographic/          # 本仓库（工作目录）
 ├── __init__.py          # 插件入口：MemoryProvider 实现、工具分发、配置、on_session_end
 ├── store.py             # MemoryStore  orchestration：事实 CRUD、实体链接、HRR 向量生成、配置
-├── store_migrations.py  # SQLite schema、_SCHEMA、migration v1-v6 及基线检测
+├── store_migrations.py  # SQLite schema、_SCHEMA、migration v1-v8 及基线检测
 ├── entities.py          # 实体抽取、解析、名称/别名匹配、归一化守门
 ├── extractors.py        # 文档→fact 提取器协议、fallback/LLM 提取器、LLM consolidator
 ├── consolidation.py     # 语义合并候选发现、LLM 守卫、merged_into 软删除
@@ -74,7 +74,7 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 1. 在当前工作目录改代码、跑测试、做版本控制。
 2. 改动稳定后，再复制/同步到 AppData 下的实时目录，供 hermes 实际加载。
 3. 不要把实时目录里的 `.db` 文件或 `__pycache__` 拖进本仓库。
-4. **任何 API key / 令牌只能走环境变量**
+4. **任何 API key 令牌只能走环境变量都在env文件中**
 
 ---
 
@@ -105,12 +105,12 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 | RRF 三路融合（RQ）                                    | ✅ 已实现         | `retrieval.py`                 |
 | entity 归一化（P1-1）                                 | ✅ 已实现         | `entities.py` / `store.py`     |
 | 近重复检测（P0）                                      | ✅ 已实现         | `store.py`                     |
-| migration 框架 +`schema_version`                    | ✅ 已实现 (v1-v6) | `store_migrations.py`          |
+| migration 框架 +`schema_version`                    | ✅ 已实现 (v1-v8) | `store_migrations.py`          |
 | `documents` 表 + `facts.source_doc_id`            | ✅ 已实现         | `store_migrations.py` / `store.py` |
 | `documents.text_hash` 去重                          | ✅ 已实现         | `store_migrations.py` / `store.py` |
 | 文档入口 `retain_document`（§3.5）                 | ✅ 已实现         | `store.py` / `extractors.py` / `__init__.py` |
 | `facts.merged_into` 软删除 & 语义合并（P1-2）       | ✅ 已实现         | `consolidation.py` / `store.py` / `retrieval.py` |
-| 惰性 GC / trust 衰减（P1）                            | ✅ 已实现         | `memory_gc.py` / `store.py` / `__init__.py` |
+| 惰性维护锁 + 实时 retrieval recency（P1）             | ✅ 已实现         | `memory_gc.py` / `retrieval.py` / `store.py` |
 | `fact_edges` 图边 + CTE 多跳（P2）                  | ❌ 已否决         | 见 [ROADMAP.md](ROADMAP.md)：380 条真实数据实测 fan-out 0.811 / shared pairs 29 对，不满足建图条件 |
 
 ## 4. 开发约定

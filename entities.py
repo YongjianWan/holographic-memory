@@ -352,7 +352,9 @@ def extract_entities(text: str) -> list[str]:
 # Persistence helpers
 # ---------------------------------------------------------------------------
 
-def resolve_entity(conn: sqlite3.Connection, name: str) -> int:
+def resolve_entity(
+    conn: sqlite3.Connection, name: str, *, commit: bool = True
+) -> int:
     """Find an existing entity by name or alias (case-insensitive) or create one.
 
     Returns the entity_id.
@@ -381,7 +383,8 @@ def resolve_entity(conn: sqlite3.Connection, name: str) -> int:
 
     # Create new entity.
     cur = conn.execute("INSERT INTO entities (name) VALUES (?)", (name,))
-    conn.commit()
+    if commit:
+        conn.commit()
     return int(cur.lastrowid)  # type: ignore[return-value]
 
 
@@ -413,7 +416,13 @@ def resolve_entity_id(conn: sqlite3.Connection, name: str) -> int | None:
     return None
 
 
-def link_fact_entity(conn: sqlite3.Connection, fact_id: int, entity_id: int) -> None:
+def link_fact_entity(
+    conn: sqlite3.Connection,
+    fact_id: int,
+    entity_id: int,
+    *,
+    commit: bool = True,
+) -> None:
     """Insert into fact_entities, silently ignore if the link already exists."""
     conn.execute(
         """
@@ -422,4 +431,5 @@ def link_fact_entity(conn: sqlite3.Connection, fact_id: int, entity_id: int) -> 
         """,
         (fact_id, entity_id),
     )
-    conn.commit()
+    if commit:
+        conn.commit()

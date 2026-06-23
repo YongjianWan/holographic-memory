@@ -13,7 +13,69 @@ from holographic.store_migrations import _migration_v2_documents, _migration_v3_
 
 
 class TestMigrations:
-    def test_fresh_database_gets_schema_version_3(self) -> None:
+    def test_v7_database_migrates_to_v8_with_backup(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        conn = sqlite3.connect(db_path)
+        conn.executescript(
+            """
+            CREATE TABLE documents (
+                doc_id INTEGER PRIMARY KEY,
+                raw_text TEXT NOT NULL,
+                text_hash TEXT UNIQUE,
+                source TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE facts (
+                fact_id INTEGER PRIMARY KEY,
+                content TEXT NOT NULL UNIQUE,
+                category TEXT DEFAULT 'general',
+                tags TEXT DEFAULT '',
+                trust_score REAL DEFAULT 0.5,
+                retrieval_count INTEGER DEFAULT 0,
+                helpful_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                source_doc_id INTEGER,
+                hrr_vector BLOB,
+                merged_into INTEGER
+            );
+            CREATE TABLE schema_version (
+                version INTEGER PRIMARY KEY,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT INTO schema_version(version) VALUES (7);
+            INSERT INTO facts(
+                fact_id, content, trust_score, created_at, updated_at
+            ) VALUES (
+                1, 'legacy v7 fact', 0.8,
+                '2026-01-01 00:00:00', '2026-02-01 00:00:00'
+            );
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            version = store._conn.execute(
+                "SELECT version FROM schema_version"
+            ).fetchone()["version"]
+            row = store._conn.execute(
+                "SELECT trust_score, last_accessed_at FROM facts"
+            ).fetchone()
+            assert version == 8
+            assert row["trust_score"] == pytest.approx(0.8)
+            assert row["last_accessed_at"] is None
+            assert Path(f"{db_path}.bak.v7").exists()
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+            Path(f"{db_path}.bak.v7").unlink(missing_ok=True)
+
+    def test_fresh_database_gets_latest_schema_without_backup(self) -> None:
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
 
@@ -25,7 +87,7 @@ class TestMigrations:
             assert row is not None
             # _SCHEMA is the latest structure, so a fresh DB is recognised as
             # already at the latest version and no migrations (and no backup) are needed.
-            assert int(row["version"]) == 7
+            assert int(row["version"]) == 8
 
             tables = {
                 r["name"]
@@ -40,6 +102,8 @@ class TestMigrations:
                 for r in store._conn.execute("PRAGMA table_info(facts)").fetchall()
             }
             assert "source_doc_id" in fact_columns
+            assert "last_accessed_at" in fact_columns
+            assert "recency_score" not in fact_columns
 
             doc_columns = {
                 r[1]
@@ -49,7 +113,7 @@ class TestMigrations:
         finally:
             store.close()
             # No backup should have been created for a fresh empty database.
-            assert not Path(f"{db_path}.bak.v7").exists()
+            assert not list(Path(db_path).parent.glob(f"{Path(db_path).name}.bak.v*"))
             Path(db_path).unlink(missing_ok=True)
 
     def test_legacy_database_without_schema_version_is_baselined_to_v0(
@@ -88,8 +152,8 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            # Should end at v7 (migrations applied after baseline v0).
-            assert int(row["version"]) == 7
+            # Should end at the latest version (migrations applied after baseline v0).
+            assert int(row["version"]) == 8
 
             columns = {
                 r[1]
@@ -140,7 +204,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            assert int(row["version"]) == 7
+            assert int(row["version"]) == 8
 
             columns = {
                 r[1]
@@ -233,7 +297,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            assert int(row["version"]) == 7
+            assert int(row["version"]) == 8
 
             columns = {
                 r[1]

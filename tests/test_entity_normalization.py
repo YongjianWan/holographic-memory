@@ -143,6 +143,77 @@ class TestEntityNormalization:
         )
         assert changed
 
+    def test_rolls_back_entity_merge_when_hrr_reindex_fails(
+        self, store: MemoryStore, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        store.add_fact('"K2.7" is the model')
+        store.add_fact('I prefer "K2_7"')
+
+        entities_before = [
+            tuple(row)
+            for row in store._conn.execute(
+                "SELECT entity_id, name, aliases FROM entities ORDER BY entity_id"
+            ).fetchall()
+        ]
+        links_before = [
+            tuple(row)
+            for row in store._conn.execute(
+                "SELECT fact_id, entity_id FROM fact_entities ORDER BY fact_id, entity_id"
+            ).fetchall()
+        ]
+        vectors_before = [
+            tuple(row)
+            for row in store._conn.execute(
+                "SELECT fact_id, hrr_vector FROM facts ORDER BY fact_id"
+            ).fetchall()
+        ]
+        banks_before = [
+            tuple(row)
+            for row in store._conn.execute(
+                "SELECT bank_name, vector, fact_count FROM memory_banks ORDER BY bank_name"
+            ).fetchall()
+        ]
+
+        def fail_reindex(
+            _fact_id: int, _content: str, *, commit: bool = True
+        ) -> None:
+            raise RuntimeError("simulated HRR failure")
+
+        monkeypatch.setattr(store, "_compute_hrr_vector", fail_reindex)
+
+        with pytest.raises(RuntimeError, match="simulated HRR failure"):
+            store.normalize_entities()
+
+        entities_after = [
+            tuple(row)
+            for row in store._conn.execute(
+                "SELECT entity_id, name, aliases FROM entities ORDER BY entity_id"
+            ).fetchall()
+        ]
+        links_after = [
+            tuple(row)
+            for row in store._conn.execute(
+                "SELECT fact_id, entity_id FROM fact_entities ORDER BY fact_id, entity_id"
+            ).fetchall()
+        ]
+        vectors_after = [
+            tuple(row)
+            for row in store._conn.execute(
+                "SELECT fact_id, hrr_vector FROM facts ORDER BY fact_id"
+            ).fetchall()
+        ]
+        banks_after = [
+            tuple(row)
+            for row in store._conn.execute(
+                "SELECT bank_name, vector, fact_count FROM memory_banks ORDER BY bank_name"
+            ).fetchall()
+        ]
+
+        assert entities_after == entities_before
+        assert links_after == links_before
+        assert vectors_after == vectors_before
+        assert banks_after == banks_before
+
     def test_canonical_selection_prefers_most_linked(self, store: MemoryStore) -> None:
         # Create many facts about "Python-Lang" and one about "Python_Lang".
         for _ in range(3):

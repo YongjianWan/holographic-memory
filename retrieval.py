@@ -8,7 +8,6 @@ similarity by ranking position rather than raw score, avoiding the
 from __future__ import annotations
 
 import logging
-import math
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
@@ -19,8 +18,10 @@ if TYPE_CHECKING:
 
 try:
     from . import holographic as hrr
+    from .memory_gc import recency_factor
 except ImportError:
     import holographic as hrr  # type: ignore[no-redef]
+    from memory_gc import recency_factor  # type: ignore[no-redef]
 
 
 # RRF smoothing constant (k=60 is the Hindsight production default).
@@ -41,12 +42,14 @@ class FactRetriever:
     def __init__(
         self,
         store: MemoryStore,
-        temporal_decay_half_life: int = 0,  # days, 0 = disabled
         hrr_dim: int = 1024,
+        recency_max_days: float = 365.0,
+        recency_floor: float = 0.1,
     ):
         self.store = store
-        self.half_life = temporal_decay_half_life
         self.hrr_dim = hrr_dim
+        self.recency_max_days = max(1.0, recency_max_days)
+        self.recency_floor = max(0.0, min(1.0, recency_floor))
 
     def search(
         self,
@@ -102,12 +105,9 @@ class FactRetriever:
             # Trust boost: centered at 1.0, ±10% over [0, 1].
             trust_boost = 1.0 + 0.2 * (fact["trust_score"] - 0.5)
 
-            # Optional temporal decay.
-            recency_boost = 1.0
-            if self.half_life > 0:
-                recency_boost = self._temporal_decay(
-                    fact.get("updated_at") or fact.get("created_at")
-                )
+            recency_boost = self._recency_boost(
+                fact.get("last_accessed_at") or fact.get("created_at")
+            )
 
             fact["score"] = rrf_score * trust_boost * recency_boost
             scored.append(fact)
@@ -118,6 +118,7 @@ class FactRetriever:
         # Strip raw HRR bytes — callers expect JSON-serializable dicts.
         for fact in results:
             fact.pop("hrr_vector", None)
+        self.store.record_retrievals({fact["fact_id"] for fact in results})
         return results
 
     # ------------------------------------------------------------------
@@ -165,7 +166,7 @@ class FactRetriever:
             f"""
             SELECT fact_id, content, category, tags, trust_score,
                    retrieval_count, helpful_count, created_at, updated_at,
-                   hrr_vector
+                   last_accessed_at, hrr_vector
             FROM facts
             {where}
             """,
@@ -224,9 +225,11 @@ class FactRetriever:
             if bank_row:
                 bank_vec = hrr.bytes_to_phases(bank_row["vector"])
                 extracted = hrr.unbind(bank_vec, probe_key)
-                return self._score_facts_by_vector(
+                results = self._score_facts_by_vector(
                     extracted, category=category, limit=limit, fact_ids=entity_fact_ids
                 )
+                self.store.record_retrievals({r["fact_id"] for r in results})
+                return results
 
         rows = self._fetch_hrr_candidates(entity_fact_ids, category=category)
         if not rows:
@@ -246,7 +249,9 @@ class FactRetriever:
             scored.append(fact)
 
         scored.sort(key=lambda x: x["score"], reverse=True)
-        return scored[:limit]
+        results = scored[:limit]
+        self.store.record_retrievals({r["fact_id"] for r in results})
+        return results
 
     def related(
         self,
@@ -300,7 +305,9 @@ class FactRetriever:
             scored.append(fact)
 
         scored.sort(key=lambda x: x["score"], reverse=True)
-        return scored[:limit]
+        results = scored[:limit]
+        self.store.record_retrievals({r["fact_id"] for r in results})
+        return results
 
     def reason(
         self,
@@ -378,7 +385,9 @@ class FactRetriever:
             scored.append(fact)
 
         scored.sort(key=lambda x: x["score"], reverse=True)
-        return scored[:limit]
+        results = scored[:limit]
+        self.store.record_retrievals({r["fact_id"] for r in results})
+        return results
 
     def contradict(
         self,
@@ -664,7 +673,7 @@ class FactRetriever:
             f"""
             SELECT fact_id, content, category, tags, trust_score,
                    retrieval_count, helpful_count, created_at, updated_at,
-                   hrr_vector
+                   last_accessed_at, hrr_vector
             FROM facts
             {where}
             """,
@@ -687,28 +696,32 @@ class FactRetriever:
         union = len(set_a | set_b)
         return intersection / union if union > 0 else 0.0
 
-    def _temporal_decay(self, timestamp_str: str | None) -> float:
-        """Exponential decay: 0.5^(age_days / half_life_days).
+    def _recency_boost(self, timestamp_str: str | None) -> float:
+        """Derive a bounded secondary boost from the factual access timestamp.
 
-        Returns 1.0 if decay is disabled or timestamp is missing.
+        ``recency_factor`` expresses freshness on its natural 0.1..1.0 scale.
+        Retrieval maps that signal to 0.9..1.0 so age can break close RRF ties
+        without overpowering relevance.
         """
-        if not self.half_life or not timestamp_str:
-            return 1.0
-
+        if not timestamp_str:
+            return 0.9
         try:
-            if isinstance(timestamp_str, str):
-                # Parse ISO format timestamp from SQLite
-                ts = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
-            else:
-                ts = timestamp_str
-
+            ts = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
             if ts.tzinfo is None:
                 ts = ts.replace(tzinfo=timezone.utc)
-
-            age_days = (datetime.now(timezone.utc) - ts).total_seconds() / 86400
-            if age_days < 0:
+            age_days = max(
+                0.0,
+                (datetime.now(timezone.utc) - ts).total_seconds() / 86400.0,
+            )
+            freshness = recency_factor(
+                age_days,
+                max_days=self.recency_max_days,
+                floor=self.recency_floor,
+            )
+            freshness_range = 1.0 - self.recency_floor
+            if freshness_range <= 0.0:
                 return 1.0
-
-            return math.pow(0.5, age_days / self.half_life)
+            normalized = (freshness - self.recency_floor) / freshness_range
+            return 0.9 + 0.1 * normalized
         except (ValueError, TypeError):
-            return 1.0
+            return 0.9

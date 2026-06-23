@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,79 @@ def store() -> MemoryStore:
 
 
 class TestWriteDeduplication:
+    def test_update_fact_rolls_back_content_and_entities_on_vector_failure(
+        self, store: MemoryStore, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fact_id = store.add_fact('"Python" is used for scripting')
+
+        def fail_vector(*_args, **_kwargs):
+            raise RuntimeError("vector generation failed")
+
+        monkeypatch.setattr(store, "_compute_hrr_vector", fail_vector)
+        with pytest.raises(RuntimeError, match="vector generation failed"):
+            store.update_fact(fact_id, content='"Rust" is used for systems work')
+
+        row = store._conn.execute(
+            "SELECT content FROM facts WHERE fact_id = ?", (fact_id,)
+        ).fetchone()
+        assert row["content"] == '"Python" is used for scripting'
+        entities = {
+            row["name"]
+            for row in store._conn.execute(
+                """
+                SELECT e.name
+                FROM entities e
+                JOIN fact_entities fe ON fe.entity_id = e.entity_id
+                WHERE fe.fact_id = ?
+                """,
+                (fact_id,),
+            ).fetchall()
+        }
+        assert entities == {"Python"}
+
+    def test_two_connections_atomically_deduplicate_near_duplicate_writes(
+        self, tmp_path: Path
+    ) -> None:
+        db_path = tmp_path / "shared.db"
+        store_a = MemoryStore(db_path=db_path, hrr_dim=256)
+        store_b = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                futures = [
+                    pool.submit(
+                        store_a.add_fact,
+                        "Python is a great programming language",
+                    ),
+                    pool.submit(
+                        store_b.add_fact,
+                        "Python is a great programming language indeed",
+                    ),
+                ]
+                ids = [future.result(timeout=10) for future in futures]
+
+            assert ids[0] == ids[1]
+            assert store_a._conn.execute(
+                "SELECT COUNT(*) FROM facts"
+            ).fetchone()[0] == 1
+        finally:
+            store_a.close()
+            store_b.close()
+
+    def test_add_fact_rolls_back_all_rows_when_vector_generation_fails(
+        self, store: MemoryStore, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fail_vector(*_args, **_kwargs):
+            raise RuntimeError("vector generation failed")
+
+        monkeypatch.setattr(store, "_compute_hrr_vector", fail_vector)
+
+        with pytest.raises(RuntimeError, match="vector generation failed"):
+            store.add_fact('"Python" is used for scripting')
+
+        assert store._conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0] == 0
+        assert store._conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0] == 0
+        assert store._conn.execute("SELECT COUNT(*) FROM fact_entities").fetchone()[0] == 0
+
     def test_near_duplicate_wording_is_merged(self, store: MemoryStore) -> None:
         id1 = store.add_fact("Python is a great programming language")
         id2 = store.add_fact("Python is a great programming language indeed")

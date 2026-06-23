@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS facts (
     trust_score     REAL DEFAULT 0.5,
     retrieval_count INTEGER DEFAULT 0,
     helpful_count   INTEGER DEFAULT 0,
+    last_accessed_at TIMESTAMP,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     source_doc_id   INTEGER REFERENCES documents(doc_id) ON DELETE SET NULL,
@@ -223,6 +224,17 @@ def _migration_v7_gc_log(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migration_v8_retrieval_recency(conn: sqlite3.Connection) -> None:
+    """Store the factual retrieval timestamp; derive recency at query time."""
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(facts)").fetchall()}
+    if "last_accessed_at" not in columns:
+        conn.execute("ALTER TABLE facts ADD COLUMN last_accessed_at TIMESTAMP")
+
+    # Do not invent historical access times from updated_at: content edits and
+    # maintenance previously shared that timestamp. Existing rows keep NULL
+    # and retrieval falls back to created_at until the first real recall.
+
+
 def _migration_v6_fts_fix_merged_coverage(conn: sqlite3.Connection) -> None:
     """Rebuild facts_fts to include ALL facts, not just active ones.
 
@@ -253,6 +265,7 @@ _MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _migration_v5_trigram_tokenizer,
     _migration_v6_fts_fix_merged_coverage,
     _migration_v7_gc_log,
+    _migration_v8_retrieval_recency,
 ]
 
 
@@ -295,18 +308,28 @@ def _detect_schema_version(conn: sqlite3.Connection) -> int:
     if fts_sql_row and fts_sql_row["sql"] and "trigram" in fts_sql_row["sql"]:
         has_trigram = True
 
-    # `_SCHEMA` creates the latest tables/columns on a fresh DB, but on a
-    # legacy DB the existing `facts` table may still lack columns that the
-    # migrations are responsible for adding. Match the newest version only
-    # when *both* the facts columns and the documents columns are present.
-    if (
+    latest_core = (
         has_trigram
         and "merged_into" in fact_columns
         and "text_hash" in doc_columns
         and "source_doc_id" in fact_columns
         and "hrr_vector" in fact_columns
         and "documents" in tables
+    )
+    if (
+        latest_core
+        and "gc_log" in tables
+        and "last_accessed_at" in fact_columns
     ):
+        return 8
+    if latest_core and "gc_log" in tables:
+        return 7
+
+    # `_SCHEMA` creates the latest tables/columns on a fresh DB, but on a
+    # legacy DB the existing `facts` table may still lack columns that the
+    # migrations are responsible for adding. Match the newest version only
+    # when *both* the facts columns and the documents columns are present.
+    if latest_core:
         # v5 and v6 have identical schema structure (same tables/columns/tokenizer).
         # We cannot distinguish them by schema alone. Always return 5 so that v6
         # migration (FTS5 rebuild) runs. The rebuild is idempotent and safe to

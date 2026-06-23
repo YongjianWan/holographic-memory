@@ -9,14 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Read-only scope gate audit that separates inserted rows, unique fact IDs,
+  merge targets/events, extraction-meta candidates, Gate A sampling, and
+  content-derived multi-label scope distribution without relying on
+  `source_doc_id`.
+- Retain extraction now reports per-chunk provider failures instead of
+  silently returning zero facts; orphan documents remain retryable.
+- Migration v8: add `facts.last_accessed_at`, separating factual recall time from content updates and feedback trust.
+- Successful `search` / `probe` / `related` / `reason` retrievals now increment `retrieval_count` and refresh `last_accessed_at`.
+- Cross-process write serialization for `add_fact` using `BEGIN IMMEDIATE`; concurrent near-duplicate writes are now checked and inserted atomically.
+- GC uses a non-blocking SQLite writer claim: if another connection owns the
+  write lock, maintenance returns `busy` without writing `gc_log`; a later
+  retry can complete. Covered by
+  `TestGarbageCollectorUnit::test_two_connections_busy_skip_writes_no_log_then_retries`.
 - **Decision record**: P2 shared-entity graph edges vetoed after real-data measurement. On 380 active facts, entity avg fan-out was 0.811, 94% of entities hung on a single fact, and only 29 fact pairs shared any entity. Recorded in [ROADMAP.md](ROADMAP.md) with restart conditions.
-- Lazy process-internal garbage collector (`memory_gc.py`) with `gc_log` table (migration v7). Runs trust-decay GC at `initialize()` and `on_session_end()`; hermes-away intervals are backfilled by the timestamp check on startup.
-- Trust decay: `trust_score` is multiplied by a recency factor `clamp(1 - days/365, 0.1, 1.0)` based on `updated_at` (or `created_at`) for all active facts during GC.
+- Lazy process-internal garbage collector (`memory_gc.py`) with `gc_log` table (migration v7). Runs at `initialize()` and `on_session_end()`; hermes-away intervals are backfilled by the timestamp check on startup.
+- Initial v7 trust-decay implementation, superseded in v8 by query-time recency derived from `last_accessed_at`.
 - New plugin config keys: `gc_interval_days`, `gc_decay_max_days`, `gc_decay_floor`.
 - Migration v6: rebuild `facts_fts` to index **all** facts (including soft-deleted `merged_into IS NOT NULL`), fixing the v5 active-only coverage bug that broke reactivation.
 - `_hrr_quality_audit.py` diagnostic script for side-by-side 3-way vs 2-way RRF evaluation on a live database.
 - RRF (Reciprocal Rank Fusion) based `FactRetriever.search` combining FTS5, Jaccard token overlap, and HRR vector similarity using rank positions instead of raw scores.
-- Multiplicative trust/recency boosts centered at 1.0 (±10% for trust).
+- Multiplicative trust/recency boosts centered near 1.0 and bounded to roughly
+  ±10%, so secondary signals cannot overpower RRF relevance.
 - Graceful fallback to FTS5 + Jaccard RRF when numpy is unavailable.
 - `MemoryStore.normalize_entities()` for merging fragmented entity variants into canonical entities with aliases.
 - Numeric/date/version signature gate in entity clustering to block hierarchical merges (e.g. "K2" vs "K2.7").
@@ -43,6 +57,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- LLM-backed retain now uses Hermes' centralized credential router while
+  remaining pinned to DeepSeek (`deepseek-v4-flash` by default). It never
+  silently substitutes the main provider; direct DeepSeek environment
+  variables remain a standalone-script fallback.
+- Restored real-data ingestion and manual library review as a hard gate before
+  any category/scope schema design. The existing 50-fact review proves
+  structural value, but not single-scope separability.
+- RRF derives recency at query time from `last_accessed_at`; the derived score is not persisted and cannot become stale.
+- `add_fact`, `update_fact`, `normalize_entities`, and each consolidation
+  cluster now own a single atomic transaction covering facts, entity links,
+  HRR vectors, and category banks.
+- Query-time recency is mapped from its raw `0.1..1.0` freshness signal to a
+  bounded `0.9..1.0` multiplier.
+- Shutdown checkpointing now uses `PRAGMA wal_checkpoint(PASSIVE)` to avoid waiting on readers in multi-process use.
 - Refactored `MemoryStore.consolidate_facts` to use soft-deletion (`merged_into`) instead of physical `DELETE`.
 - All read paths now strictly filter out superseded facts (`merged_into IS NULL`).
 - Tightened default entity normalization thresholds (edit 0.85 / token 0.9).

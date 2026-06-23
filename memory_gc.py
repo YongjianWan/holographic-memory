@@ -1,8 +1,11 @@
-"""Garbage collection and trust decay for the holographic memory store.
+"""Lazy maintenance coordination for the holographic memory store.
 
 GC runs inside the hermes process only (no OS cron, no standalone worker).
 It is triggered at initialize() and on_session_end(), and uses the gc_log
 table to decide whether enough time has passed since the last run.
+
+Retrieval recency is intentionally not persisted or refreshed here. It is
+derived from facts.last_accessed_at at query time.
 """
 
 from __future__ import annotations
@@ -13,15 +16,7 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-_GC_TYPE_DECAY = "trust_decay"
-_TRUST_MIN = 0.0
-_TRUST_MAX = 1.0
-
-
-def _clamp_trust(value: float) -> float:
-    return max(_TRUST_MIN, min(_TRUST_MAX, value))
-
-
+_GC_TYPE_MAINTENANCE = "maintenance"
 def _now_ts() -> float:
     return datetime.now(timezone.utc).timestamp()
 
@@ -63,7 +58,7 @@ def recency_factor(days: float, max_days: float = 365.0, floor: float = 0.1) -> 
 
 
 class GarbageCollector:
-    """Lazy, process-internal garbage collector for the memory store."""
+    """Non-blocking, cross-process maintenance coordinator."""
 
     def __init__(
         self,
@@ -79,7 +74,7 @@ class GarbageCollector:
         self.decay_floor = max(0.0, min(1.0, decay_floor))
 
     def maybe_run(self, force: bool = False) -> dict:
-        """Run trust-decay GC if enough time has passed since the last run.
+        """Run due maintenance if this process can claim the writer lock.
 
         Returns a status dict with at least {"ran": bool, ...}. When
         ``interval_days`` is 0 and ``force`` is False, GC is disabled.
@@ -87,10 +82,29 @@ class GarbageCollector:
         if self.interval_days <= 0 and not force:
             return {"ran": False, "reason": "disabled"}
 
+        # GC is opportunistic maintenance. Across multiple agent processes,
+        # only the first connection that acquires the SQLite writer lock runs;
+        # the others skip immediately and retry at a later trigger.
+        if self.conn.in_transaction:
+            self.conn.commit()
+        previous_timeout = int(
+            self.conn.execute("PRAGMA busy_timeout").fetchone()[0]
+        )
+        self.conn.execute("PRAGMA busy_timeout = 0")
+        try:
+            self.conn.execute("BEGIN IMMEDIATE")
+        except sqlite3.OperationalError as exc:
+            if "locked" in str(exc).lower() or "busy" in str(exc).lower():
+                return {"ran": False, "reason": "busy"}
+            raise
+        finally:
+            self.conn.execute(f"PRAGMA busy_timeout = {previous_timeout}")
+
         last_ts = self._last_finished_ts()
         now = _now_ts()
         elapsed_days = (now - last_ts) / 86400.0
         if elapsed_days < self.interval_days and not force:
+            self.conn.rollback()
             return {
                 "ran": False,
                 "reason": "too_soon",
@@ -98,62 +112,45 @@ class GarbageCollector:
                 "interval_days": self.interval_days,
             }
 
-        return self._run_decay(now)
+        return self._run_maintenance()
 
     def _last_finished_ts(self) -> float:
         row = self.conn.execute(
             "SELECT MAX(finished_at) FROM gc_log WHERE gc_type = ? AND finished_at IS NOT NULL",
-            (_GC_TYPE_DECAY,),
+            (_GC_TYPE_MAINTENANCE,),
         ).fetchone()
         return _parse_iso_ts(row[0] if row else None)
 
-    def _run_decay(self, now: float) -> dict:
+    def _run_maintenance(self) -> dict:
         started = _utc_now_iso()
         cur = self.conn.execute(
             "INSERT INTO gc_log(gc_type, started_at) VALUES (?, ?)",
-            (_GC_TYPE_DECAY, started),
+            (_GC_TYPE_MAINTENANCE, started),
         )
         gc_id = cur.lastrowid
 
         try:
-            rows = self.conn.execute(
-                "SELECT fact_id, trust_score, updated_at, created_at FROM facts WHERE merged_into IS NULL"
-            ).fetchall()
-
-            updated_count = 0
-            for fact_id, trust_score, updated_at, created_at in rows:
-                ref_time = updated_at or created_at or started
-                ref_ts = _parse_iso_ts(ref_time)
-                if ref_ts <= 0:
-                    ref_ts = now
-                days = (now - ref_ts) / 86400.0
-                factor = recency_factor(days, self.decay_max_days, self.decay_floor)
-                new_trust = _clamp_trust(trust_score * factor)
-
-                if abs(new_trust - trust_score) >= 0.001:
-                    self.conn.execute(
-                        "UPDATE facts SET trust_score = ?, updated_at = ? WHERE fact_id = ?",
-                        (new_trust, _utc_now_iso(), fact_id),
-                    )
-                    updated_count += 1
+            row = self.conn.execute(
+                "SELECT COUNT(*) FROM facts WHERE merged_into IS NULL"
+            ).fetchone()
+            facts_processed = int(row[0]) if row else 0
 
             finished = _utc_now_iso()
             self.conn.execute(
                 "UPDATE gc_log SET finished_at = ?, facts_processed = ?, facts_updated = ? WHERE gc_id = ?",
-                (finished, len(rows), updated_count, gc_id),
+                (finished, facts_processed, 0, gc_id),
             )
             self.conn.commit()
             logger.info(
-                "Trust-decay GC finished: processed=%d updated=%d",
-                len(rows),
-                updated_count,
+                "Maintenance checkpoint finished: active_facts=%d",
+                facts_processed,
             )
             return {
                 "ran": True,
-                "facts_processed": len(rows),
-                "facts_updated": updated_count,
+                "facts_processed": facts_processed,
+                "facts_updated": 0,
             }
         except Exception:
             self.conn.rollback()
-            logger.exception("Trust-decay GC failed")
+            logger.exception("Lazy maintenance failed")
             raise

@@ -209,8 +209,14 @@ def consolidate_facts(
             continue
 
         with store._lock:
-            # Run each cluster consolidation in a transaction.
+            cluster_facts_merged = 0
+            cluster_facts_created = 0
+            cluster_categories: set[str] = set()
             try:
+                if store._conn.in_transaction:
+                    store._conn.commit()
+                store._conn.execute("BEGIN IMMEDIATE")
+
                 for item in consolidations:
                     input_ids: list[int] = item.get("input_ids", [])
                     consolidated_content: str = item.get("consolidated_content", "").strip()
@@ -231,7 +237,7 @@ def consolidate_facts(
 
                     # Check category and build merged metadata.
                     fact_category = rows[0]["category"]
-                    affected_categories.add(fact_category)
+                    cluster_categories.add(fact_category)
 
                     merged_trust = max(r["trust_score"] for r in rows)
                     merged_retrieval_count = sum(r["retrieval_count"] for r in rows)
@@ -270,7 +276,7 @@ def consolidate_facts(
                             ),
                         )
                         new_fact_id = cur.lastrowid
-                        facts_created += 1
+                        cluster_facts_created += 1
                     except sqlite3.IntegrityError:
                         # Consolidated content already exists, merge metadata into the existing row.
                         row = store._conn.execute(
@@ -308,11 +314,17 @@ def consolidate_facts(
                     if new_fact_id is not None:
                         entity_names = entities.extract_entities(consolidated_content)
                         for name in entity_names:
-                            entity_id = entities.resolve_entity(store._conn, name)
-                            entities.link_fact_entity(store._conn, new_fact_id, entity_id)
+                            entity_id = entities.resolve_entity(
+                                store._conn, name, commit=False
+                            )
+                            entities.link_fact_entity(
+                                store._conn, new_fact_id, entity_id, commit=False
+                            )
                         # Warn and generate HRR vector.
                         store._warn_hrr_capacity(consolidated_content, entity_names)
-                        store._compute_hrr_vector(new_fact_id, consolidated_content)
+                        store._compute_hrr_vector(
+                            new_fact_id, consolidated_content, commit=False
+                        )
 
                     # Set merged_into for old facts instead of deleting them.
                     # Preserve entity links in fact_entities.
@@ -324,16 +336,19 @@ def consolidate_facts(
                             "UPDATE facts SET merged_into = ? WHERE fact_id = ?",
                             (new_fact_id, old_id),
                         )
-                        facts_merged += 1
+                        cluster_facts_merged += 1
 
+                for cat in cluster_categories:
+                    store._rebuild_bank(cat, commit=False)
                 store._conn.commit()
             except Exception as e:
                 store._conn.rollback()
                 logger.error("Consolidation batch failed and was rolled back: %s", e)
+                continue
 
-    # Rebuild banks for all affected categories.
-    for cat in affected_categories:
-        store._rebuild_bank(cat)
+            facts_created += cluster_facts_created
+            facts_merged += cluster_facts_merged
+            affected_categories.update(cluster_categories)
 
     return {
         "clusters_processed": len(clusters),

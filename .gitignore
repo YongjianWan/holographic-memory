@@ -45,5 +45,7 @@ sample_facts_unclear.json
 corpus_audit_*.json
 corpus_audit_report.json
 corpus_audit_out.txt
+scope_gate_audit.json
+scope_gate_audit.md
 trial_output.txt
 *.log

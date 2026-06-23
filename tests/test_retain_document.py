@@ -109,6 +109,34 @@ class TestRetainDocument:
             store.close()
             Path(db_path).unlink(missing_ok=True)
 
+    def test_retain_document_reports_llm_call_failure(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            def fail_call(_prompt: str) -> str:
+                raise RuntimeError("provider authentication failed")
+
+            extractor = _LLMExtractor(model_call=fail_call)
+            result = store.retain_document(
+                "Document text that should remain retryable.",
+                extractor=extractor,
+            )
+
+            assert result["status"] == "document_stored_extraction_failed"
+            assert result["facts_added"] == 0
+            assert result["extraction_errors"] == [
+                {
+                    "chunk": 1,
+                    "error_type": "RuntimeError",
+                    "message": "provider authentication failed",
+                }
+            ]
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
     def test_retain_document_llm_extractor_injection(self) -> None:
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
@@ -243,10 +271,10 @@ class TestExtractors:
         facts = extractor.extract("prompt", "general")
         assert facts == ["First atomic fact.", "Second atomic fact."]
 
-    def test_llm_extractor_returns_empty_on_failure(self) -> None:
+    def test_llm_extractor_propagates_provider_failure(self) -> None:
         def boom(_: str) -> str:
             raise RuntimeError("api down")
 
         extractor = _LLMExtractor(model_call=boom)
-        facts = extractor.extract("prompt", "general")
-        assert facts == []
+        with pytest.raises(RuntimeError, match="api down"):
+            extractor.extract("prompt", "general")

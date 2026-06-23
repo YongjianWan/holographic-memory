@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tempfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -92,6 +93,73 @@ class TestRRFSearch:
         results = retriever.search("Python", category="project")
         assert len(results) == 1
         assert "language" in results[0]["content"]
+
+    def test_search_records_retrieval_and_access_time(
+        self, retriever: FactRetriever
+    ) -> None:
+        fact_id = retriever.store.add_fact("Python is a programming language")
+        before = retriever.store._conn.execute(
+            "SELECT retrieval_count, last_accessed_at FROM facts WHERE fact_id = ?",
+            (fact_id,),
+        ).fetchone()
+        assert before["retrieval_count"] == 0
+        assert before["last_accessed_at"] is None
+
+        results = retriever.search("Python programming", limit=5)
+        assert results
+
+        after = retriever.store._conn.execute(
+            "SELECT retrieval_count, last_accessed_at FROM facts WHERE fact_id = ?",
+            (fact_id,),
+        ).fetchone()
+        assert after["retrieval_count"] == 1
+        assert datetime.fromisoformat(after["last_accessed_at"]) is not None
+
+    def test_recency_boost_is_derived_live_from_last_accessed_at(
+        self, retriever: FactRetriever
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        recent = now.isoformat()
+        old = (now - timedelta(days=180)).isoformat()
+        expired = (now - timedelta(days=500)).isoformat()
+
+        assert retriever._recency_boost(recent) == pytest.approx(1.0, abs=0.01)
+        assert retriever._recency_boost(old) == pytest.approx(0.945, abs=0.01)
+        assert retriever._recency_boost(expired) == pytest.approx(0.9, abs=0.01)
+        assert retriever._recency_boost(None) == pytest.approx(0.9)
+
+    def test_rrf_score_uses_live_recency_signal(
+        self, retriever: FactRetriever, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        recent_id = retriever.store.add_fact("recent candidate")
+        old_id = retriever.store.add_fact("old candidate")
+        now = datetime.now(timezone.utc)
+        retriever.store._conn.execute(
+            "UPDATE facts SET last_accessed_at = ? WHERE fact_id = ?",
+            (now.isoformat(), recent_id),
+        )
+        retriever.store._conn.execute(
+            "UPDATE facts SET last_accessed_at = ? WHERE fact_id = ?",
+            ((now - timedelta(days=180)).isoformat(), old_id),
+        )
+        retriever.store._conn.commit()
+
+        monkeypatch.setattr(
+            retriever, "_fts_ranking",
+            lambda *_args, **_kwargs: {recent_id: 1},
+        )
+        monkeypatch.setattr(
+            retriever, "_jaccard_ranking",
+            lambda *_args, **_kwargs: {old_id: 1},
+        )
+        monkeypatch.setattr(
+            retriever, "_hrr_ranking",
+            lambda *_args, **_kwargs: {},
+        )
+
+        results = retriever.search("candidate", min_trust=0.0, limit=2)
+        assert [row["fact_id"] for row in results] == [recent_id, old_id]
+        assert results[0]["score"] > results[1]["score"]
 
 
 class TestEntityPrefilteredQueries:
