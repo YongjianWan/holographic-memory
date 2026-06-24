@@ -15,23 +15,18 @@
 
 按「体感收益 / 风险」排序：
 
-1. **继续灌真实数据 + 翻库 go/no-go（结构升级前置硬门）**
-   - 真实语料已扩大到 2078 条 active facts / 9 documents；立即转入只读审计，暂停继续灌库，禁止先设计或执行 `scope` migration。
-   - 第 0 项来源账已核清：第二批 1809 次成功 `fact_id` 返回中新增 1698 行；111 次 P0 merge 全部发生在 `工作心理问题.txt` 内部，落在 92 个新 fact target 上，没有合并进旧 380 条 facts。
-   - 第 0 项质量账未完全通过：主体粒度正常，但 doc 9 有 18 条超过 60 字、11 条超过 80 字的异常输出，最长 196 字，包含模型提炼过程而非事实。门 A/B 抽样前必须过滤或清理这类 extraction meta。
-   - `source_doc_id` 是单值归属，不记录“后来的文档也命中过该 fact”的贡献关系；未来跨文档 merge 后，不能直接拿 per-source linked count 当完整来源分布。
-   - 门 B 机器初判已完成（只读、按 fact 内容多标签）：2029 条 clean facts 中，单域 1295（63.8%）、双域 467（23.0%）、三域以上 56（2.8%）、无匹配 211（10.4%）。最大候选域覆盖 36.2%，未出现单域吞没绝大多数 facts。
-   - 初判把 scope 形态进一步收窄到 `fact ↔ scope` 多对多候选：25.8% facts 需要至少两个领域；单值 fact scope 不适合。该结论仍需人工复核 taxonomy、50 条门 A 样本和多域代表样本，未授权 migration。
-   - 门 A 已过：现有 50 条人工样本中，30 条在“去掉人物后仍成立”的判据下为 GO，证明库里存在结构硬货。
-   - 门 B 未过：尚未验证 facts 能否稳定、低歧义地切成领域。必须统计单领域、多领域、无法判断三类占比，并人工复核代表样本。
-   - 候选领域必须从真实数据归纳，不能预设“投促局 / 公文系统 / Holographic”就是最终 taxonomy。
-   - **GO**：绝大多数结构 fact 可稳定归入单一领域，跨领域事实比例低且规则清楚，才允许进入 scope 结构设计。
-   - **NO-GO**：大量 fact 天生横跨多个领域或只能归为“混合/其他”，则不新增 scope schema；改评估多对多标签、document provenance，或维持现状。
+1. **当前库口径重建（进行中，先于任何 schema）**
+   - 旧会话记录和当前报告口径不一致：曾记录 `2078 active facts / 2029 clean facts`，但当前 `reports/scope_gate_audit.md` 显示 `333 unique_fact_ids`。
+   - 实时库带 WAL，WSL 下直接 `mode=ro` 读取出现 `disk I/O error`；`immutable=1` 只能粗读主文件，可能忽略 WAL，不能作为最终审计口径。
+   - 下一步必须先创建稳定 DB 快照，再重新输出 ledger：total facts、active facts、soft-deleted facts、documents、source distribution、merge events、meta candidates、scope labels。
+   - 在该快照报告完成前，任何旧的 Gate A/B 数字都只能作为历史线索，不能作为当前 schema 决策依据。
+   - 仍保持已验证的设计边界：`source_doc_id` 是单值归属，不是完整 provenance；发生 merge 后不能用它推导完整来源。
 
-2. **Category / scope 拆分（仅在门 B 通过后）**
-   - `category` 保留事实类型；单值 `facts.scope` 已不再是候选。当前机器初判支持多对多 `fact ↔ scope`，但只有人工门通过后才允许设计。
-   - 目标是缩小探重、检索与 consolidation 候选范围；只有过滤信号足够可靠时才值得进入 schema。
-   - schema migration 不可逆，因此在 go/no-go 报告和人工样本审查完成前，不写 migration、不回填真实库。
+2. **Category / scope 拆分（冻结到快照审计后）**
+   - 不新增 `facts.scope`、`fact_scopes` 或 document-provenance migration，直到快照审计和人工复核完成。
+   - 若新快照仍证明单值 scope 不成立，候选只能在多对多标签或 document-provenance 中继续评估。
+   - 若新快照显示当前 active 库已经被大量软删除/重抽样改变，必须重新计算 scope 分布和 HRR bank 压力，不能沿用旧的 2071 / SNR 0.70 结论。
+
 
 3. **P1-4：跨话题串联（手动 canary）**
    - 每次只取 2-3 个不同 scope；每条 observation 至少引用 2 条源 fact。

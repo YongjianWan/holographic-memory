@@ -39,6 +39,7 @@ Holographic Memory 是 hermes-agent 的一个 **MemoryProvider 插件**：用本
 - **无常驻进程、无外部依赖**：不加 Postgres / Redis / embedding 服务 / cron worker。
 - **关机即文件、开机即用**：数据在 SQLite 文件里，启动无初始化序列。
 - **记忆数据不可再生**：任何 schema 变更必须走 migration，**禁止 DROP + CREATE**。
+- **不可逆操作之前必须验证**
 
 ## 2. 仓库布局
 
@@ -163,6 +164,7 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 
 - 所有 LLM 调用必须是一次性 API，**不能**在系统内维持长期循环或后台推理。
 - LLM 只用于：文档提炼、语义合并/收敛、跨话题串联。排序/探重/建边尽量本地完成。
+- **原子事实提炼红线**：LLM 提取器必须执行严格的**“事实/废话判定边界”**。严禁将聊天上下文中的纯互动、客套（如问安、聊天状态描述）或临时的隐喻性劝导提炼为事实。只提取具备长期未来召回价值的客观结论、数据指标、系统规约或已确认的稳定行为/模式。
 
 ## 5. 未来路线
 
