@@ -164,6 +164,26 @@ class TestRetainDocument:
             store.close()
             Path(db_path).unlink(missing_ok=True)
 
+    def test_llm_extractor_rejects_dialogue_noise_and_meta_leaks(self) -> None:
+        response = "\n".join(
+            [
+                "Claude说很晚了让用户快去睡觉。",
+                "用户存在用技术开发来逃避投递简历的心理避难模式。",
+                "我需要确保每条事实都是自包含的。",
+                "Claude指出如果心里想走，Offer的最佳用法是直接走，不是回神思谈薪。",
+                "赵传帅需在2026年6月18日前完成税收金融原型。",
+                "Claude stated the user is collecting ammunition including workspace-bridge.",
+            ]
+        )
+        extractor = _LLMExtractor(model_call=lambda _prompt: response)
+
+        facts = extractor.extract("raw text", "project")
+
+        assert facts == [
+            "Claude指出如果心里想走，Offer的最佳用法是直接走，不是回神思谈薪。",
+            "赵传帅需在2026年6月18日前完成税收金融原型。",
+        ]
+
     def test_add_fact_with_source_doc_id(self) -> None:
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
@@ -244,6 +264,42 @@ class TestRetainDocument:
             assert result["chunks_processed"] > 1
             assert result["facts_added"] > 1
             assert result["facts_added"] == result["chunks_processed"]
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_retain_document_rebuilds_category_bank_once_per_batch(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            calls: list[tuple[str, bool]] = []
+            original_rebuild = store._rebuild_bank
+
+            def spy_rebuild(category: str, *, commit: bool = True) -> None:
+                calls.append((category, commit))
+                original_rebuild(category, commit=commit)
+
+            store._rebuild_bank = spy_rebuild  # type: ignore[method-assign]
+
+            def fake_llm(_prompt: str) -> str:
+                return "\n".join(
+                    [
+                        "Alpha service uses Redis cache.",
+                        "Beta platform stores facts in SQLite.",
+                        "Gamma client calls APIs through Axios.",
+                    ]
+                )
+
+            result = store.retain_document(
+                "Prompt text.",
+                category="project",
+                extractor=_LLMExtractor(model_call=fake_llm),
+            )
+
+            assert result["facts_added"] == 3
+            assert calls == [("project", True)]
         finally:
             store.close()
             Path(db_path).unlink(missing_ok=True)

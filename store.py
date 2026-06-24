@@ -326,6 +326,7 @@ class MemoryStore:
         source_doc_id: int | None = None,
         *,
         commit: bool = True,
+        rebuild_bank: bool = True,
     ) -> int:
         """Merge a newly seen fact into an existing one.
 
@@ -403,7 +404,8 @@ class MemoryStore:
                     )
                 self._warn_hrr_capacity(content, new_entity_names)
                 self._compute_hrr_vector(existing_id, content, commit=False)
-                self._rebuild_bank(category, commit=False)
+                if rebuild_bank:
+                    self._rebuild_bank(category, commit=False)
                 if commit:
                     self._conn.commit()
                 return existing_id
@@ -458,6 +460,7 @@ class MemoryStore:
         tags: str = "",
         source_doc_id: int | None = None,
         trust: float | None = None,
+        rebuild_bank: bool = True,
     ) -> int:
         """Insert a fact and return its fact_id.
 
@@ -484,7 +487,12 @@ class MemoryStore:
                 dup_id = self._find_near_duplicate(content, category)
                 if dup_id is not None:
                     fact_id = self._merge_into(
-                        dup_id, content, tags, source_doc_id, commit=False
+                        dup_id,
+                        content,
+                        tags,
+                        source_doc_id,
+                        commit=False,
+                        rebuild_bank=rebuild_bank,
                     )
                     self._conn.commit()
                     return fact_id
@@ -511,24 +519,29 @@ class MemoryStore:
 
                 self._warn_hrr_capacity(content, entity_names)
                 self._compute_hrr_vector(fact_id, content, commit=False)
-                self._rebuild_bank(category, commit=False)
+                if rebuild_bank:
+                    self._rebuild_bank(category, commit=False)
                 self._conn.commit()
                 return fact_id
             except sqlite3.IntegrityError:
                 self._conn.rollback()
                 row = self._conn.execute(
-                    "SELECT fact_id, merged_into FROM facts WHERE content = ?", (content,)
+                    "SELECT fact_id, category, merged_into FROM facts WHERE content = ?",
+                    (content,),
                 ).fetchone()
                 if row is None:
                     raise
                 existing_id = int(row["fact_id"])
                 if row["merged_into"] is not None:
+                    existing_category = row["category"]
                     self._conn.execute("BEGIN IMMEDIATE")
                     self._conn.execute(
                         "UPDATE facts SET merged_into = NULL, trust_score = ?, "
                         "updated_at = CURRENT_TIMESTAMP WHERE fact_id = ?",
                         (initial_trust, existing_id),
                     )
+                    if rebuild_bank:
+                        self._rebuild_bank(existing_category, commit=False)
                     self._conn.commit()
                 return existing_id
             except Exception:
@@ -594,6 +607,7 @@ class MemoryStore:
         extraction_errors: list[dict] = []
         is_fallback = extractor.kind == "fallback"
         fact_trust = _FALLBACK_TRUST if is_fallback else None
+        categories_to_rebuild: set[str] = set()
 
         for chunk_index, chunk in enumerate(chunks, start=1):
             try:
@@ -618,11 +632,16 @@ class MemoryStore:
                         category=category,
                         source_doc_id=doc_id,
                         trust=fact_trust,
+                        rebuild_bank=False,
                     )
                     fact_ids.append(fact_id)
+                    categories_to_rebuild.add(category)
                 except Exception:
                     # A single bad fact should not kill the whole batch.
                     continue
+
+        for changed_category in sorted(categories_to_rebuild):
+            self._rebuild_bank(changed_category)
 
         if fact_ids:
             status = "ok"

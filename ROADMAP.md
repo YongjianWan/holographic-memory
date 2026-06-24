@@ -15,17 +15,18 @@
 
 按「体感收益 / 风险」排序：
 
-1. **当前库口径重建（进行中，先于任何 schema）**
+1. **当前库口径重建（ledger 已完成，scope gate 待重跑）**
    - 旧会话记录和当前报告口径不一致：曾记录 `2078 active facts / 2029 clean facts`，但当前 `reports/scope_gate_audit.md` 显示 `333 unique_fact_ids`。
-   - 实时库带 WAL，WSL 下直接 `mode=ro` 读取出现 `disk I/O error`；`immutable=1` 只能粗读主文件，可能忽略 WAL，不能作为最终审计口径。
-   - 下一步必须先创建稳定 DB 快照，再重新输出 ledger：total facts、active facts、soft-deleted facts、documents、source distribution、merge events、meta candidates、scope labels。
-   - 在该快照报告完成前，任何旧的 Gate A/B 数字都只能作为历史线索，不能作为当前 schema 决策依据。
+   - 已通过 SQLite backup API 创建稳定快照并输出 `reports/current_db_ledger.md` / `.json`。
+   - 当前快照口径：2741 total facts、1051 active facts、1690 soft-deleted facts、9 documents、schema v8；integrity check 为 ok，FK violations 为 0。
+   - 当前 active category：project 933、personal 111、user_pref 6、general 1；`project` bank 1024 维估算 SNR 约 1.048。
+   - 下一步必须基于该稳定快照重新跑 scope gate；任何旧的 Gate A/B 数字都只能作为历史线索，不能作为当前 schema 决策依据。
    - 仍保持已验证的设计边界：`source_doc_id` 是单值归属，不是完整 provenance；发生 merge 后不能用它推导完整来源。
 
 2. **Category / scope 拆分（冻结到快照审计后）**
    - 不新增 `facts.scope`、`fact_scopes` 或 document-provenance migration，直到快照审计和人工复核完成。
    - 若新快照仍证明单值 scope 不成立，候选只能在多对多标签或 document-provenance 中继续评估。
-   - 若新快照显示当前 active 库已经被大量软删除/重抽样改变，必须重新计算 scope 分布和 HRR bank 压力，不能沿用旧的 2071 / SNR 0.70 结论。
+   - 当前快照已经显示 active 库被大量软删除/重抽样改变：1690 条 soft-deleted facts 均指向 `999999 System audit soft-delete marker`，不能沿用旧的 2071 / SNR 0.70 结论。
 
 
 3. **P1-4：跨话题串联（手动 canary）**

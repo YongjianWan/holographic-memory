@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Current DB ledger script (`tests/scripts/run_current_db_ledger.py`) that uses
+  SQLite's backup API to snapshot the live memory store before read-only
+  auditing. The generated report records current fact counts, document
+  distribution, soft-delete counts, memory bank pressure, and candidate dirty
+  facts without mutating the source DB.
+- Local post-parse guardrails for LLM extraction output, rejecting common leaks
+  such as dialogue state, sleep reminders, ammunition metaphors, memory slot
+  chatter, motive inferences, and extractor self-talk before facts reach
+  storage.
 - Read-only scope gate audit that separates inserted rows, unique fact IDs,
   merge targets/events, extraction-meta candidates, Gate A sampling, and
   content-derived multi-label scope distribution without relying on
@@ -57,6 +66,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `retain_document` now delays category bank rebuilds during batch fact writes
+  and rebuilds each changed category once after the document batch completes,
+  avoiding repeated full-bank rebuilds for every extracted fact.
 - LLM-backed retain now uses Hermes' centralized credential router while
   remaining pinned to DeepSeek (`deepseek-v4-flash` by default). It never
   silently substitutes the main provider; direct DeepSeek environment

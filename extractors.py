@@ -118,11 +118,52 @@ class _LLMExtractor:
             line = re.sub(r"^\d+([.、\)\s]|\.\d+)*\s*", "", line).strip()
             if len(line) < 12:
                 continue
+            if self._should_reject_fact(line):
+                continue
             if line in seen:
                 continue
             seen.add(line)
             facts.append(line)
         return facts
+
+    @staticmethod
+    def _should_reject_fact(line: str) -> bool:
+        """Local guardrail for common LLM extraction leaks.
+
+        The prompt carries the main policy, but production data showed that
+        models still sometimes emit dialogue state, metaphors, or their own
+        extraction reasoning. This guard keeps those leaks out of storage.
+        """
+        text = line.strip()
+
+        meta_patterns = [
+            r"^(我需要|让我|需要确保|用户要求我|本次提取|根据规则)",
+            r"(提取原子事实|原子事实提取|输出格式|不要输出|不能输出|确保自包含)",
+            r"\b(i need to|the user asks me|the user requested me to|atomic facts?:)\b",
+        ]
+        dialogue_state_patterns = [
+            r"(该睡觉|该睡了|睡吧|晚安|该收了|很晚了|goodnight|time to sleep)",
+            r"(第\s*\d+\s*条记忆|目前有\s*\d+\s*条|memory slot|numbered entries)",
+            r"(请求.*总结.*记忆|summari[sz]e.*conversation.*memory|added .*memory entries)",
+        ]
+        metaphor_patterns = [
+            r"(囤.*弹药|擦.*弹药|收集.*弹药|开.*枪|举.*枪|对准靶子|stockpil.*ammo|collecting ammunition|wiping the gun)",
+        ]
+        motive_patterns = [
+            r"(心理避难|逃避模式|在逃避|逃避投递|避难模式|motive inference|escape pattern)",
+        ]
+
+        for pattern in meta_patterns + dialogue_state_patterns + metaphor_patterns + motive_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
+
+        # Extremely long lines are usually failed formatting rather than an
+        # atomic fact. Keep this high enough to avoid rejecting dense technical
+        # facts that still fit the storage model.
+        if len(text) > 420:
+            return True
+
+        return False
 
 
 class _LLMConsolidator:

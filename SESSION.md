@@ -6,40 +6,40 @@
 
 ## 当前焦点
 
-- **第 1 步收束中**：先清理工作树噪音、修正文档口径，再进入数据库快照审计。当前不做 schema migration，不写真实库。
-- **代码验证仍是绿的**：
+- **1-4 顺序已完成**：
+  1. 文档口径和 CRLF/trailing whitespace 噪音已收束，并先提交 `7c64ba8 docs: realign holographic audit state`。
+  2. 已用 SQLite backup API 生成稳定快照审计，报告见 `reports/current_db_ledger.md` / `.json`。
+  3. `_LLMExtractor` 增加本地事实/废话守卫，拒收对话状态、睡觉提醒、弹药隐喻、记忆槽位、心理动机推断和模型自言自语。
+  4. `retain_document` 批量写入时延迟 category bank 重建，整批完成后每个 category 只重建一次。
+- **代码验证**：
   - Windows Python: `import holographic` 通过。
-  - Windows pytest: `115 passed in 7.01s`。
+  - Windows pytest: `117 passed in 12.35s`。
   - WSL 环境没有 `python`/`pytest` 命令；该项目当前以 Windows Python 作为有效验证入口。
-- **实时库口径需要重新核账**：
-  - 旧记录曾写到 `2078 active facts / 9 documents`，并基于 `2029 clean facts` 做 Gate A/B。
-  - 当前 `reports/scope_gate_audit.md` 显示的是 `333 unique_fact_ids`，明显不是同一口径。
-  - 直接用 SQLite `mode=ro` 读取实时 `memory_store.db` 报 `disk I/O error`；`immutable=1` 可粗读主文件，但可能忽略活跃 WAL，不作为最终结论。
-  - 因此第 2 步必须先做稳定 DB 快照，再基于快照重新生成 ledger / scope gate 报告。
-- **真实库粗读快照（仅供排查，不作最终口径）**：
-  - `immutable=1` 粗读主文件：2741 total facts、1051 active facts、1690 soft-deleted facts、9 documents、schema v8。
-  - active source 分布粗读：null 29，doc1 227，doc3 47，doc4 77，doc5 46，doc6 258，doc7 14，doc8 240，doc9 113。
-  - 这些数字与旧文档不一致，下一步用稳定快照确认。
-- **提取 Prompt 已进入事实/废话边界方向**：
-  - `_LLMExtractor` 已加入拒收纯互动、临时对话状态、隐喻性劝导、心理动机推断等规则。
-  - Doc 9 局部 canary 仍显示需要继续验证“具体性保留”和“口水话拒收”之间的平衡。
+- **稳定快照 ledger（2026-06-24 15:03:36）**：
+  - `facts_total=2741`，`facts_active=1051`，`facts_soft_deleted=1690`，`documents_total=9`，schema v8。
+  - `integrity_check=ok`，foreign key violations 为 0。
+  - active category：project 933，personal 111，user_pref 6，general 1。
+  - 所有 1690 条 soft-deleted facts 当前都指向 `999999 System audit soft-delete marker`，说明当前库已被清理/重抽样改写，不能沿用旧的 2078 active 口径。
+  - `project` bank 当前 fact_count 933，按 1024 维估算 SNR 约 1.048，仍低于 2.0。
 
 ## 进行中
 
 - [x] 清理 `SESSION.md` 断裂/重复叙述。
 - [x] 识别 CRLF / trailing whitespace 噪音。
-- [ ] 完成第 1 步提交。
+- [x] 完成第 1 步提交。
+- [x] 生成稳定 DB 快照 ledger。
+- [x] 增加提取入口守卫。
+- [x] 修复批量 retain 重复重建 category bank。
 
 ## 下一步顺序
 
-1. 第 1 步：清理工作树噪音和文档口径，提交一个 git checkpoint。
-2. 第 2 步：做稳定 DB 快照审计，输出当前事实 ledger。
-3. 第 3 步：基于真实 canary 修提取边界和 dirty fact 处理。
-4. 第 4 步：实现批量 retain 的延迟 category bank 重建。
+1. 对 `reports/current_db_ledger.md` 中的 dirty/meta 候选做更精细的人工复核；当前简单候选规则仍会把长但有效的事实列入候选。
+2. 基于稳定快照重新跑 scope gate，而不是沿用旧 `scope_gate_audit.md`。
+3. 决定是否把当前 reports / trial scripts 中的历史产物归档或 ignore，降低工作树噪音。
 
 ## 已知陷阱（临时）
 
-- `project` category 仍然过宽，HRR category bank 曾出现 SNR 过载；在第 2 步快照审计前不要把旧 SNR 数字当当前结论。
+- `project` category 仍然过宽；当前快照 fact_count 933，1024 维估算 SNR 约 1.048。
 - 当前 reports 目录包含多轮脚本产物，不能默认 `reports/scope_gate_audit.md` 就是最新全库报告。
 - 不要直接在活 WAL 库上做结论性审计；先快照，再读快照。
 - 事实/对话噪音仍是主风险：提取器要拒收问安、睡觉提醒、聊天节奏、临时隐喻和心理归因，只保留长期可召回的事实、规约、客观结论和明确建议。
