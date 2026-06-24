@@ -40,6 +40,7 @@ Holographic Memory 是 hermes-agent 的一个 **MemoryProvider 插件**：用本
 - **关机即文件、开机即用**：数据在 SQLite 文件里，启动无初始化序列。
 - **记忆数据不可再生**：任何 schema 变更必须走 migration，**禁止 DROP + CREATE**。
 - **不可逆操作之前必须验证**
+- **强模型时代的朴素记忆层**：检索层负责用 grep/FTS/Jaccard 捞候选、保留来源和降噪，不负责提前把“理解”烘焙进向量库；理解留给当下的 LLM。
 
 ## 2. 仓库布局
 
@@ -137,6 +138,9 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 
 ### 4.3 检索质量（RQ）红线
 
+- **FTS / grep 不是低级兜底，而是个人本地记忆的主路线**：随着模型能力和上下文增强，记忆层应优先提供可审计的候选文本、事实账本和 provenance，而不是急着引入不可解释的 embedding 服务。
+- **embedding 缺失是设计取舍，不是待修 bug**：牺牲一部分不共词语义召回，换取本地、轻量、无常驻、可审计。若召回不足，先做 query reformulation（让 LLM 改写成关键词/实体/时间/项目名）和候选控制，不要先上向量库。
+- **P1-4 不是语义搜索补丁**：跨话题串联只做 induction（跨领域结构相似 observation），不能被拿来补 embedding 缺失后的泛语义召回。
 - 三路检索（FTS5 / Jaccard / HRR）**禁止直接拿原始分线性相加**。
 - 必须改用 **RRF（Reciprocal Rank Fusion）**：`score = Σ 1/(60 + rank_i)`，k=60。
 - **HRR 那路是假设，不是事实**：全量数据上来后必须实测三路 RRF 与两路（FTS5+Jaccard）RRF 的排序差异。若在真实语料上 HRR 两两相似度塌在噪声区间（如 366 条云提取事实 max≈0.089、p99≈0.052），则 HRR 给出的“排名”就是噪声，会往共识分里掺沙子。届时应将 HRR 在 RRF 中降权或踢出，而不是继续调 HRR 阈值。

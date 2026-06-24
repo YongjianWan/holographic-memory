@@ -36,6 +36,7 @@
 1. 对 `reports/current_db_ledger.md` 中的 dirty/meta 候选做更精细的人工复核；当前简单候选规则仍会把长但有效的事实列入候选。
 2. 基于稳定快照重新跑 scope gate，而不是沿用旧 `scope_gate_audit.md`。
 3. 决定是否把当前 reports / trial scripts 中的历史产物归档或 ignore，降低工作树噪音。
+4. 后续 extractor profile 阶段再设计 validity / expired 语义；当前不为“本周待办/已过期演示/已确认事项”提前写 schema。
 
 ## 已知陷阱（临时）
 
@@ -49,6 +50,8 @@
 - **scope 不可逆门**：在稳定快照和人工复核完成前，不新增 `facts.scope`、`fact_scopes` 或 provenance migration。
 - **source_doc_id 边界**：`source_doc_id` 是单值归属，不是完整 provenance；发生 merge 后不能用它推导完整来源。
 - **事实/废话判定边界规则**：LLM 提取 Prompt 必须做客观的“事实/对话噪音”判定，拒收纯互动、聊天状态描述、劝慰和隐喻性表述。
+- **强模型 + grep/FTS 路线**：embedding 缺失是有意取舍，不是当前 bug。检索层负责可审计候选召回和 provenance，理解留给当下 LLM；召回不足优先做 query reformulation，不先引入向量服务。
+- **P1-4 定位边界**：跨话题串联只做 induction，不承担语义搜索或 embedding 替代职责。
 - **生产库测试场纪律**：任何会写真实 `memory_store.db` 的动作都必须先备份，并把 backup 用作前后 diff 基准。
 - **P2 图边仍保持否决状态**：除非新的真实快照证明 entity fan-out 明显回升，否则不重启 shared-entity 图边。
 

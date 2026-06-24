@@ -38,6 +38,8 @@
 4. **RQ：决定 HRR 在默认 search 中的去留**
    - 已跑 3-way vs 2-way A/B 审计；多数查询下 HRR 注入噪音。
    - 暂不阻塞 scope/P1-4；后续单独决定是否将默认 search 降级为 FTS5 + Jaccard 两路 RRF，并保留 HRR 给 `probe` / `reason` 实验路径。
+   - 不因“无语义召回”直接引入 embedding 服务；这是无常驻、本地可审计路线的有意取舍。召回不足时优先做 query reformulation 与候选控制。
+   - P1-4 跨话题串联只做 induction，不承担语义搜索补丁职责。
 
 5. **❌ P2：shared-entity 边 + CTE 多跳 —— 已否决**
    - 否决依据：380 条真实 facts 实测，entity avg fan-out 仅 0.811；94% 的 entity 只挂在一条 fact 上；共享至少一个 entity 的 fact pairs 仅 29 对。`tanh(shared × 0.5)` 在此分布上空转，建图无意义。
@@ -46,6 +48,8 @@
 
 ## 已知限制
 
+- **有效期语义尚未显式建模**：`trust` / `recency` 不能表达“本周待办”“6月18日演示”“已确认/已过期”这类事实的明确失效时点。该问题归入后续 extractor profile / lifecycle 设计；当前库未洗干净、Gate A/B 未重跑前不提前写 schema。
+- **无 embedding 是设计取舍**：Holo 依赖 FTS5 / Jaccard / grep-like candidate recall，把理解留给当下 LLM。缺失不共词语义召回是已接受代价，不作为当前技术债进入路线图。
 - **entity 版本后缀混淆**：`_numeric_signature` 对 "GPT-4" / "GPT-4o" 都抽出 `{4}`，存在误合并风险。观察真实数据后再决定是否加后缀语义守门。
 - **fanout 下降归因未验**：早期灌入 351 条真实文档后，entity avg fan-out 从 1.22 降至 0.811。当前语料已增至 2078 条 active facts，旧分布结论需要重跑；在新审计前不调整 entity 抽取规则。
 - **scope 可分性未验**：现有 50 条审查只证明部分 fact 具有脱离人物的结构价值，没有证明它们适合单值领域划分。scope 仍是待验证假设，不是已批准 schema。

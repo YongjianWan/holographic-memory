@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Decision record**: retrieval remains grep/FTS/Jaccard-first. Missing
+  embedding-based semantic recall is an accepted local/no-daemon tradeoff, not
+  current technical debt; future recall improvements should prefer query
+  reformulation and candidate control before any vector service.
+- **Decision record**: explicit validity / expiration semantics are a real
+  lifecycle gap, but deferred to the future extractor-profile phase after the
+  current corpus is cleaned and Gate A/B is rerun.
 - Current DB ledger script (`tests/scripts/run_current_db_ledger.py`) that uses
   SQLite's backup API to snapshot the live memory store before read-only
   auditing. The generated report records current fact counts, document
