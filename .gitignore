@@ -48,4 +48,21 @@ corpus_audit_out.txt
 scope_gate_audit.json
 scope_gate_audit.md
 trial_output.txt
+canary_diff_report.md
+doc9_canary_diff_report.md
+prompt_comparison_*.txt
+retrieval_tests_output.txt
 *.log
+
+# Local real-DB trial/review scratch files
+tests/scripts/_*.txt
+tests/scripts/_*.py
+tests/scripts/run_batch_reextract.py
+tests/scripts/run_canary_apply.py
+tests/scripts/run_canary_prep.py
+tests/scripts/run_canary_trial.py
+tests/scripts/run_doc9_batch_reextract.py
+tests/scripts/run_doc9_canary_trial.py
+tests/scripts/run_gate_a.py
+tests/scripts/run_prompt_trial.py
+tests/scripts/run_retrieval_tests.py

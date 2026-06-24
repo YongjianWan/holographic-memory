@@ -119,8 +119,14 @@ def _parse_json_object(text: str) -> dict:
         text = re.sub(r"```$", "", text).strip()
     start, end = text.find("{"), text.rfind("}")
     if start < 0 or end < start:
-        raise ValueError("LLM response did not contain a JSON object")
-    return json.loads(text[start : end + 1])
+        raise ValueError(f"LLM response did not contain a JSON object. Raw text: {text!r}")
+    snippet = text[start : end + 1]
+    try:
+        return json.loads(snippet)
+    except Exception as exc:
+        print(f"JSON load failed on: {snippet!r}")
+        raise exc
+
 
 
 def _discover_taxonomy(

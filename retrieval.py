@@ -92,6 +92,7 @@ class FactRetriever:
 
         # Compute RRF scores and apply multiplicative boosts.
         scored = []
+        import re
         for fact in rows:
             fid = fact["fact_id"]
             rrf_score = 0.0
@@ -109,7 +110,10 @@ class FactRetriever:
                 fact.get("last_accessed_at") or fact.get("created_at")
             )
 
-            fact["score"] = rrf_score * trust_boost * recency_boost
+            # Speaker penalty: reduce score of raw diarized chitchat (starts with "说话人X说" etc.)
+            speaker_penalty = 0.85 if re.match(r"^说话人\s*\d+", fact["content"]) else 1.0
+
+            fact["score"] = rrf_score * trust_boost * recency_boost * speaker_penalty
             scored.append(fact)
 
         scored.sort(key=lambda x: x["score"], reverse=True)
@@ -533,9 +537,33 @@ class FactRetriever:
         """
         conn = self.store._conn
 
+        import re
+        words = re.findall(r"[\u4e00-\u9fff0-9a-zA-Z]+", query.lower())
+        terms = []
+        stop_patterns = {"是什么", "当时卡", "卡在哪", "在哪", "我上次", "上次纠", "结论是", "的结论", "的定义"}
+        for word in words:
+            has_cjk = any('\u4e00' <= c <= '\u9fff' for c in word)
+            if has_cjk:
+                if len(word) >= 3:
+                    for i in range(len(word) - 2):
+                        t = word[i:i+3]
+                        if t in stop_patterns:
+                            continue
+                        terms.append(t)
+                else:
+                    terms.append(word)
+            else:
+                if len(word) >= 3:
+                    terms.append(word)
+
+        if not terms:
+            fts_query = query
+        else:
+            fts_query = " OR ".join(f'"{t}"' for t in terms)
+
         params: list = []
         where_clauses = ["facts_fts MATCH ?", "f.trust_score >= ?", "f.merged_into IS NULL"]
-        params.append(query)
+        params.append(fts_query)
         params.append(min_trust)
 
         if category:
@@ -569,7 +597,7 @@ class FactRetriever:
         min_trust: float,
         top_n: int,
     ) -> dict[int, int]:
-        """Return Jaccard token-overlap ranking as {fact_id: 1-indexed rank}."""
+        """Return token-overlap ranking (using Overlap Coefficient) as {fact_id: 1-indexed rank}."""
         conn = self.store._conn
 
         where = "WHERE trust_score >= ? AND merged_into IS NULL"
@@ -588,13 +616,19 @@ class FactRetriever:
         ).fetchall()
 
         query_tokens = self._tokenize(query)
+        # Filter out common query question/stop words to suppress chitchat noise
+        stop_tokens = {'我', '你', '的', '是', '在', '了', '和', '有', '及', '与', '这', '那', '哪', '什么', '怎么', '谁', '个', '是哪', '是什么', '在哪', '上次', '我上次'}
+        query_tokens = {t for t in query_tokens if t not in stop_tokens}
+
         if not query_tokens:
             return {}
 
         scored = []
         for row in rows:
             fact_tokens = self._tokenize(row["content"]) | self._tokenize(row["tags"])
-            similarity = self._jaccard_similarity(query_tokens, fact_tokens)
+            # Overlap Coefficient (intersection / query_length) to eliminate long-document penalty
+            intersection = len(query_tokens & fact_tokens)
+            similarity = intersection / len(query_tokens)
             if similarity > 0.0:
                 scored.append((row["fact_id"], similarity))
 
