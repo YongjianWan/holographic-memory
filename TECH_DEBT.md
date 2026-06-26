@@ -11,15 +11,16 @@
 
 ## L2 债务（阻塞演进或导致结果不可信）
 
-### Fact provenance 只能保留一个 source document
+### 旧库 provenance 无法回填
 
-P0 `_merge_into` 在旧 fact 已有 `source_doc_id` 时保留旧值，后来的文档即使
-命中并支持同一 fact，也不会留下贡献关系。`retain_document.facts_added`
-同时把新增行和返回旧 fact ID 都计为成功，字段名容易被误读为净新增数。
+v10 已经引入 `fact_provenance`，新发生的 document retain / merge 会保留
+多来源账本。旧库不能回填：当前历史 soft-deleted facts 的 `merged_into`
+已经统一指向 `999999` 审计 marker，真实 merge target 和贡献链不可恢复。
 
-- **当前影响**：跨文档 merge 发生后，按 `source_doc_id` 分组只能看到当前
-  归属，不能还原完整来源贡献；任何来源均衡、文档回溯或审计账本都不能直接依赖该列。
-- **偿还计划**：引入多对多 `fact_provenance`，记录 fact 与贡献源文档/来源事实的关系，并在 merge 时继承来源。该债务已经独立于 scope Gate B，是当前首要编码任务。
+- **当前影响**：旧 active facts 可能没有 provenance 行；查询侧必须把这种
+  空行状态读时投影为 `legacy_unknown`，不能存占位或把 `source_doc_id` 当完整来源。
+- **偿还计划**：不修旧账，只保护新账。后续查询/报告层统一优先读
+  `fact_provenance`，无行时显式返回 legacy unknown。
 
 ### LLM extraction meta 混入 facts
 

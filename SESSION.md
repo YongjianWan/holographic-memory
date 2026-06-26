@@ -13,10 +13,11 @@
   4. `retain_document` 批量写入时延迟 category bank 重建，整批完成后每个 category 只重建一次。
 - **代码验证**：
   - Windows Python: `import holographic` 通过。
-  - Windows pytest: `117 passed in 12.35s`。
+  - Windows pytest: `117 passed in 12.35s`（v10 前一次完整基线）。
+  - v10 targeted tests: `34 passed in 5.31s`（`tests/test_migrations.py` + `tests/test_retain_document.py`）。
   - WSL 环境没有 `python`/`pytest` 命令；该项目当前以 Windows Python 作为有效验证入口。
 - **稳定快照 ledger（2026-06-24 15:03:36）**：
-  - `facts_total=3181`，`facts_active=1034`，`facts_soft_deleted=2147`，`documents_total=9`，schema v9。
+  - `facts_total=3181`，`facts_active=1034`，`facts_soft_deleted=2147`，`documents_total=9`，schema v10 代码已落地；生产快照读取时仍需按迁移前/后具体状态注明。
   - `integrity_check=ok`，foreign key violations 为 0。
   - **Active 数量对平对账单（1051 -> 1034，净减少 17）**：
     - `1034 = 1051 + 6 (Doc 6) - 22 (Doc 8) - 1 (Doc None)`
@@ -39,10 +40,11 @@
 - [x] 建立 checkpoint commit `4f9aef0 chore: checkpoint holographic workspace state`，作为后续文档清理前的安全点。
 - [x] 对齐 `SESSION.md` / `ROADMAP.md` / `TECH_DEBT.md` 的当前状态口径。
 - [x] 将旧 `SESSION.md` 状态块归档到 `docs/achieve/session_2026-06-24_legacy_status.md`，避免信息只存在于 git 历史里。
+- [x] 落地 migration v10 `fact_provenance`：新 document retain / merge 记录来源账本，旧库不写占位，legacy unknown 由查询侧读时派生。
 
 ## 下一步顺序
 
-1. **补齐 Source Provenance 继承机制（首要编码任务）**：解决对账中暴露的 `source_doc_id` 软肋——在 merge 发生时，引入事实与源文档的多对多映射表（如 `fact_provenance`），防止合并破坏原始文献的可审计追踪。这是下一步最核心、唯一绿灯的编码工作。
+1. **补齐 Source Provenance 查询/报告面**：代码层 v10 已记录新来源账本；下一步需要让查询/报告优先读取 `fact_provenance`，无行时显式返回 `legacy_unknown`，并避免继续把 `source_doc_id` 误当完整 provenance。
 2. **整库干净度人工确认**：对最新快照中识别出的 6 条 meta candidates 以及 dirty 候选事实进行人工清洗和标记处理。
 3. **解 HRR 饱和方案解耦实施**：
    - 探讨轻量化、非侵入性、可逆的 HRR bank 物理切分方案（如直接按 `source_doc_id` 切分并聚合 memory bank，或使用粗分类打标），以缓解 `project` bank 的容量压力，彻底与 `facts.scope` 解耦。
@@ -64,7 +66,8 @@
 - **评估器判定抖动与过抽率**：对评估器主客观判定边界的 ±3.8% 抖动（b 档）收手，对 26.6% 的过抽率依靠出口闸承接；把精力集中在基准物理锁定与对齐上。
 - **scope 不可逆门**：在出现真实域过滤需求前，不新增 `facts.scope`、`fact_scopes` 或 scope-driven bank schema。
 - **source_doc_id 边界**：`source_doc_id` 是单值归属，不是完整 provenance；发生 merge 后不能用它推导完整来源。
-- **provenance 解耦于 scope Gate B**：`fact_provenance` 的动机是 merge 后来源可审计，不是 scope 分域；它是当前首要编码任务，不再等 Gate B。
+- **provenance 解耦于 scope Gate B**：`fact_provenance` 的动机是 merge 后来源可审计，不是 scope 分域；v10 已落地，不等 Gate B。
+- **legacy provenance 不回填**：当前历史 merge 链已被 `999999` marker 拍平，旧 active facts 无 provenance 行是诚实状态；`legacy_unknown` 必须读时派生，禁止写占位。
 - **事实/废话判定边界规则**：LLM 提取 Prompt 必须做客观的“事实/对话噪音”判定，拒收纯互动、聊天状态描述、劝慰 and 隐喻性表述。
 - **强模型 + grep/FTS 路线**：embedding 缺失是有意取舍，不是当前 bug。检索层负责可审计候选召回和 provenance，理解留给当下 LLM；召回不足优先做 query reformulation，不先引入向量服务。
 - **P1-4 定位与红线定型**：只做 induction（抽结构不抽人），拒做 deduction/abduction（禁动机推断）。引入 `source_fact_ids >= 2` 非空硬闸。承认通用模型天花板，不加 embedding/自训模型等任何依赖，不行则砍。gated on Gate A 审计。

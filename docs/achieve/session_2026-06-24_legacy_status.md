@@ -1,3 +1,17 @@
+# v10 provenance 设计备注
+
+`fact_provenance` 只能向前保真，不能回填旧 merge 链。当前库的
+`merged_into` 已统一拍平到 `999999` 审计 marker，历史事实只剩“已被软删”
+这个信息，真实 survivor 和贡献文档已经不可恢复。
+
+因此 v10 不给旧 active facts 写自指 provenance 占位：空就是诚实状态。
+查询侧遇到无 provenance 行的 legacy fact 时，应读时投影为
+`legacy_unknown`，不要把这个状态存回 facts 或 provenance 表。
+
+设计测试要覆盖三件事：跨文档 merge 后 survivor 保留两个来源；同一
+document 的不同 `source_fact_id` 不按 `doc_id` 去重；同一 source triple
+汇入同一 survivor 时只保留一行，避免重复账。
+
 # SESSION legacy status snapshot — 2026-06-24
 
 > 这是从 `SESSION.md` 移出的旧状态块，归档自 checkpoint commit

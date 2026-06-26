@@ -59,7 +59,7 @@ Holographic Memory 是 hermes-agent 的一个 **MemoryProvider 插件**：用本
 C:/Users/sdses/Desktop/随机小项目/holographic/          # 本仓库（工作目录）
 ├── __init__.py          # 插件入口：MemoryProvider 实现、工具分发、配置、on_session_end
 ├── store.py             # MemoryStore  orchestration：事实 CRUD、实体链接、HRR 向量生成、配置
-├── store_migrations.py  # SQLite schema、_SCHEMA、migration v1-v9 及基线检测
+├── store_migrations.py  # SQLite schema、_SCHEMA、migration v1-v10 及基线检测
 ├── entities.py          # 实体抽取、解析、名称/别名匹配、归一化守门
 ├── extractors.py        # 文档→fact 提取器协议、fallback/LLM 提取器、LLM consolidator
 ├── consolidation.py     # 语义合并候选发现、LLM 守卫、merged_into 软删除
@@ -165,10 +165,11 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 | RRF 三路融合（RQ）                                    | ✅ 已实现         | `retrieval.py`                 |
 | entity 归一化（P1-1）                                 | ✅ 已实现         | `entities.py` / `store.py`     |
 | 近重复检测（P0）                                      | ✅ 已实现         | `store.py`                     |
-| migration 框架 +`schema_version`                    | ✅ 已实现 (v1-v9) | `store_migrations.py`          |
+| migration 框架 +`schema_version`                    | ✅ 已实现 (v1-v10) | `store_migrations.py`          |
 | `documents` 表 + `facts.source_doc_id`            | ✅ 已实现         | `store_migrations.py` / `store.py` |
 | `documents.text_hash` 去重                          | ✅ 已实现         | `store_migrations.py` / `store.py` |
 | 文档入口 `retain_document`（§3.5）                 | ✅ 已实现         | `store.py` / `extractors.py` / `__init__.py` |
+| `fact_provenance` 前向来源账本（v10）              | ✅ 已实现         | `store_migrations.py` / `store.py` |
 | `facts.merged_into` 软删除 & 语义合并（P1-2）       | ✅ 已实现         | `consolidation.py` / `store.py` / `retrieval.py` |
 | 惰性维护锁 + 实时 retrieval recency（P1）             | ✅ 已实现         | `memory_gc.py` / `retrieval.py` / `store.py` |
 | `fact_edges` 图边 + CTE 多跳（P2）                  | ❌ veto / 冻结    | 见 [ROADMAP.md](ROADMAP.md)：真实数据 fan-out 不支持；除非新快照和真实查询需求同时解冻，否则不重启 |

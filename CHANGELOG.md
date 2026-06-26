@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `source_doc_id`.
 - Retain extraction now reports per-chunk provider failures instead of
   silently returning zero facts; orphan documents remain retryable.
+- Migration v10: add forward-only `fact_provenance` with
+  `(fact_id, doc_id, source_fact_id)` uniqueness. New document retains record
+  origin/merge provenance; legacy facts are not backfilled because historical
+  merge direction was flattened by the `999999` soft-delete marker.
 - Migration v8: add `facts.last_accessed_at`, separating factual recall time from content updates and feedback trust.
 - Successful `search` / `probe` / `related` / `reason` retrievals now increment `retrieval_count` and refresh `last_accessed_at`.
 - Cross-process write serialization for `add_fact` using `BEGIN IMMEDIATE`; concurrent near-duplicate writes are now checked and inserted atomically.
@@ -69,17 +73,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `eval_retain_quality.py` for measuring extraction granularity and token cost.
 - `batch_retain_eval.py` for scanning a directory of documents and producing aggregate statistics.
 - Integration tests verifying soft-deleted facts are hidden from all read paths and reactivation works.
-- `AGENTS.md`, `TECH_DEBT.md`, `SESSION.md`, `SOUL.md`, `ROADMAP.md`, and `docs/README.md` documenting architecture, decisions, and debt.
+- `AGENTS.md`, `TECH_DEBT.md`, `SESSION.md`, `ROADMAP.md`, and `docs/README.md` documenting architecture, decisions, and debt.
 
 ### Changed
 
 - Refreshed `AGENTS.md` against the current constitution/session posture:
-  migration status now says v9, P2 is documented as veto/frozen, periodic
+  migration status now says v10, P2 is documented as veto/frozen, periodic
   maintenance is described as any-live-instance with SQLite locking, and P1-4
   reflects Gate A GO while preserving its implementation guardrails.
 - Realigned status documentation after the checkpoint commit: `SESSION.md`
   is now the single current-state source, `ROADMAP.md` reflects the current
-  `schema v9` ledger / Gate A GO / Gate B NO-GO posture, and `TECH_DEBT.md`
+  `schema v10` ledger / Gate A GO / Gate B NO-GO posture, and `TECH_DEBT.md`
   separates source provenance from scope-gate decisions.
 - Consolidated assistant-facing documentation: `AGENTS.md` is now the single
   work entrypoint, project discipline formerly delegated to `SOUL.md` is folded
