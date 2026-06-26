@@ -1,11 +1,11 @@
 # Holographic Memory — 文档导航
 
-> 本目录只放导航页。详细设计稿/历史文档保留文件粒度在仓库根目录。
+> 本目录放判断准则、导航页和历史归档。AI 助手入口统一在仓库根目录的 `AGENTS.md`。
 
 ## 入口
 
-- [AGENTS.md](../AGENTS.md) — 项目契约、编码红线、当前架构现状、开发约定。
-- [SOUL.md](../SOUL.md) — 人格与工程纪律。
+- [AGENTS.md](../AGENTS.md) — AI 助手唯一工作入口：项目契约、编码红线、当前架构现状、开发约定。
+- [宪法.md](宪法.md) — 判断准则层：母红线、Hindsight 筛选刀、协作规矩、进库裁决；准则冲突时优先。
 
 ## 计划与历史
 
@@ -16,4 +16,6 @@
 
 ## 设计参考
 
-- [holo-改造方案.md](../holo-改造方案.md) — 完整改造方案 v3.2（历史设计稿）。
+- [achieve/holo-改造方案.md](achieve/holo-改造方案.md) — 完整改造方案 v3.2（历史设计稿）。
+- [achieve/并发补丁_多agent共享库.md](achieve/并发补丁_多agent共享库.md) — 多 agent 共享库并发方案归档。
+- [achieve/CODE_SUMMARY.md](achieve/CODE_SUMMARY.md) — 代码结构摘要归档。

@@ -73,6 +73,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Consolidated assistant-facing documentation: `AGENTS.md` is now the single
+  work entrypoint, project discipline formerly delegated to `SOUL.md` is folded
+  into `AGENTS.md` / `docs/宪法.md`, including the external SOUL priority stack,
+  Linus engineering lens, tool discipline, and authorization boundary.
+  `docs/README.md` now points to the archived design documents under
+  `docs/achieve/`.
 - `retain_document` now delays category bank rebuilds during batch fact writes
   and rebuilds each changed category once after the document batch completes,
   avoiding repeated full-bank rebuilds for every extracted fact.

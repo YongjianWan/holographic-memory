@@ -5,32 +5,32 @@
 - Source database was copied with SQLite backup API.
 - Counts below come from the copied snapshot, not from the live WAL database.
 - Source DB: `C:\Users\sdses\AppData\Local\hermes\memory_store.db`
-- Snapshot DB: `reports\snapshots\memory_store_snapshot_20260624_150336.db`
+- Snapshot DB: `reports\snapshots\memory_store_snapshot_20260624_205628.db`
 
 ## Integrity
 
-- generated_at: 2026-06-24T15:03:36
+- generated_at: 2026-06-24T20:56:28
 - schema_version: 8
 - integrity_check: ok
 - foreign_key_violations: 0
 
 ## Fact Counts
 
-- facts_total: 2741
-- facts_active: 1051
-- facts_soft_deleted: 1690
+- facts_total: 3181
+- facts_active: 1034
+- facts_soft_deleted: 2147
 - documents_total: 9
 - merge_targets: 1
-- merge_events: 1690
+- merge_events: 2147
 - cross-source merge candidates: 0
 
 ## Active Facts By Category
 
 | category | active_facts |
 |---|---:|
-| project | 933 |
+| project | 917 |
 | personal | 111 |
-| user_pref | 6 |
+| user_pref | 5 |
 | general | 1 |
 
 ## Documents
@@ -42,9 +42,9 @@
 | 3 | 47 | 0 | C:\Users\sdses\Desktop\今日.md |
 | 4 | 77 | 0 | C:\Users\sdses\Desktop\AI智能检索与公文写作系统_需求文档.md |
 | 5 | 46 | 57 | C:\Users\sdses\Desktop\ppt修改.txt |
-| 6 | 258 | 530 | C:\Users\sdses\Desktop\招商会议.txt |
+| 6 | 264 | 772 | C:\Users\sdses\Desktop\招商会议.txt |
 | 7 | 14 | 0 | C:\Users\sdses\Desktop\土地数据.txt |
-| 8 | 240 | 406 | C:\Users\sdses\Desktop\招商2.txt |
+| 8 | 218 | 620 | C:\Users\sdses\Desktop\招商2.txt |
 | 9 | 113 | 696 | C:\Users\sdses\Desktop\工作心理问题.txt |
 
 ## Memory Banks
@@ -53,12 +53,12 @@
 |---|---:|---:|
 | cat:general | 1 | 32.0 |
 | cat:personal | 113 | 3.01 |
-| cat:project | 933 | 1.048 |
+| cat:project | 917 | 1.057 |
 | cat:user_pref | 6 | 13.064 |
 
 ## Meta Candidates
 
-- candidate_count_limited_to_100: 37
+- candidate_count_limited_to_100: 34
 
 | fact_id | doc | length | content |
 |---:|---:|---:|---|
@@ -70,7 +70,6 @@
 | 22 | None | 289 | Holographic memory provider activated on 2026-06-15. SQLite database at ~/AppData/Local/hermes/memory_store.db. HRR dimension 1024, auto_extract enabled, default trust 0.5. No external dependencies, no daemon, no model loading. Replaces hindsight which died from PyTorch meta tensor error. |
 | 6 | None | 279 | Frontend application uses Vue.js with Pinia state management. Routes include static routes and investment workbench hidden routes. Has login/lock screen/dynamic route permission guards. API calls via Axios with baseURL, Token, error handling, and duplicate submission prevention. |
 | 9 | None | 274 | Skill curation decisions: hermes-self-audit merged into hermes-agent as references/. skill-evaluator merged into l4-skill-forge as evaluation framework. excalidraw-diagram-generator merged into excalidraw. dispatching-parallel-agents merged into subagent-driven-development. |
-| 14 | None | 261 | User is Shensi (Shensi Electronics) project manager. Creator and maintainer of Kimi CLI skill library (43+ skills: shensi-pm-suite, l4-skill-forge, role-* series, etc.). When user recommends skills/tools, treat as authoritative source - learn rather than judge. |
 | 21 | None | 261 | API keys location (values not stored): KIMI_API_KEY→env, Kimi CLI→~/.kimi/config.toml, GitHub→~/.config/gh/hosts.yml, VolcEngine→ov.conf, SERPER/TUSHARE/ELEVENLABS→env pending configuration. HINDSIGHT_API_KEY in .env but hindsight service dead as of 2026-06-09. |
 | 7 | None | 254 | Backend layered architecture: boot, web controller, service layer (AigzsgtAgentChatService for agent chat, CompanyAnalysisService), data access layer. Modules: security (Redis), biz, system, quartz, generator connect to database; agentProxy via HTTP/SSE. |
 | 3 | None | 247 | Platform uses three vertical LLMs: general LLM, investment attraction vertical LLM, report generation LLM. Data sources include Haier enterprise database (30M+), Jinan policy/land/fund database, industry dynamics, government cloud computing power. |
@@ -97,5 +96,3 @@
 | 238 | 1 | 21 | 研判流程通过智能体驱动，而非人工配置规则。 |
 | 376 | 4 | 20 | 需求确认文件命名规则为主题_日期_版本。 |
 | 316 | 4 | 18 | 文件命名规则格式为主题_日期_版本。 |
-| 1000603 | 8 | 17 | 孔畅需要进一步研究项目库使用规则。 |
-| 1219 | 8 | 15 | 届时再研究权限逻辑和管理规则。 |

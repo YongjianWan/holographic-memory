@@ -66,7 +66,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT trust_score, last_accessed_at FROM facts"
             ).fetchone()
-            assert version == 8
+            assert version == 9
             assert row["trust_score"] == pytest.approx(0.8)
             assert row["last_accessed_at"] is None
             assert Path(f"{db_path}.bak.v7").exists()
@@ -87,7 +87,7 @@ class TestMigrations:
             assert row is not None
             # _SCHEMA is the latest structure, so a fresh DB is recognised as
             # already at the latest version and no migrations (and no backup) are needed.
-            assert int(row["version"]) == 8
+            assert int(row["version"]) == 9
 
             tables = {
                 r["name"]
@@ -153,7 +153,7 @@ class TestMigrations:
                 "SELECT version FROM schema_version"
             ).fetchone()
             # Should end at the latest version (migrations applied after baseline v0).
-            assert int(row["version"]) == 8
+            assert int(row["version"]) == 9
 
             columns = {
                 r[1]
@@ -204,7 +204,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            assert int(row["version"]) == 8
+            assert int(row["version"]) == 9
 
             columns = {
                 r[1]
@@ -297,7 +297,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            assert int(row["version"]) == 8
+            assert int(row["version"]) == 9
 
             columns = {
                 r[1]

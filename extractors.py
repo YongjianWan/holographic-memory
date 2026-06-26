@@ -12,8 +12,12 @@ class FactExtractor(Protocol):
     """Pluggable extractor: turns a raw document into atomic fact strings."""
 
     kind: str
+    version: str
 
     def extract(self, raw_text: str, category: str) -> list[str]:
+        ...
+
+    def get_prompt_hash(self) -> str:
         ...
 
 
@@ -25,6 +29,7 @@ class _LocalFallbackExtractor:
     """
 
     kind: str = "fallback"
+    version: str = "fallback-v1"
 
     def __init__(self, min_length: int = 20) -> None:
         self.min_length = min_length
@@ -47,6 +52,10 @@ class _LocalFallbackExtractor:
             facts.append(sentence)
         return facts
 
+    def get_prompt_hash(self) -> str:
+        import hashlib
+        return hashlib.sha256(b"").hexdigest()
+
 
 class _LLMExtractor:
     """LLM-based atomic-fact extractor.
@@ -58,6 +67,43 @@ class _LLMExtractor:
     """
 
     kind: str = "llm"
+    version: str = "llm-v1"
+
+    PROMPT_INSTRUCTIONS = (
+        "You are an atomic-fact extractor. Extract one atomic fact per line from the text below.\n\n"
+        "Rules for extraction:\n"
+        "1. Atomic Fact Extraction & Detail Preservation:\n"
+        "- ONE fact per line. No compound sentences.\n"
+        "- Each fact must be self-contained: understandable without the surrounding text.\n"
+        "- If the text contains multiple related claims, split them into separate facts.\n"
+        "- Aim for 5-25 words per fact. Never exceed 60 words / 80 tokens per fact.\n"
+        "- For Chinese text, split at Chinese sentence/clause boundaries （。；：） and keep each fact short.\n"
+        "- PRESERVE concrete details: never abstract or generalize specific numbers, versions, dates, formulas, salary/offer amounts, company/project names, menu names, or geographic locations (e.g., keep '6700元', '神思', '西安 Offer', '企业库' rather than generalizing them to 'salary', 'company', 'offer', 'menu name').\n\n"
+        "2. Factual Statements vs. Conversational Boilerplate (Verifiability Check):\n"
+        "- Only extract statements that assert stable, verifiable facts about the world. A valid fact must be something that, if taken out of context and read by a stranger three months later, can be verified as true or false.\n"
+        "- Also preserve explicit recommendations or stated positions (e.g., 'Claude recommends X', 'The document states Y is the preferred approach'), as these are stable assertions about what was advised.\n"
+        "- REJECT conversational scaffolding, filler words (e.g., '嗯', '对对对', '你重录', '哦', '啊', '对', '好吧'), and raw timestamps.\n"
+        "- REJECT transient system/dialogue state metrics, including fleeting statistics that change over time (e.g., number of active facts, memory slot numbers like '第21条', or current token counts), as these do not represent stable, long-term factual knowledge.\n"
+        "- REJECT statements that only describe dialogue state, temporary interactive status, or conversational boilerplate (e.g., reject 'Claude says it's time to sleep', 'goodnight', or metaphors like 'stockpiling ammo/wiping the gun'). Keep the spoken content only if it asserts a stable, verifiable factual claim or task specification (e.g., '赵传帅需在2026年6月18日周四前完成税收金融原型' or 'Claude指出如果心里想走，Offer的最佳用法是直接走').\n\n"
+        "3. NO Abductions or Motive Inferences:\n"
+        "- Do NOT extract psychological attributions or motive inferences about the user, regardless of whether they are inferred by the extractor or explicitly stated in the original text (e.g., reject '用户在逃避', '用户表示自己在逃避', '用户存在避难模式'). Focus strictly on stated facts and concrete assertions.\n"
+        "- Claude's own stated judgments and recommendations about the user's situation are NOT subject to this rule and should be evaluated under Rule 2.\n"
+        "- However, DO extract explicitly stated behavioral preferences or self-descriptions (e.g., '用户表示更倾向于先完成开发工作', '用户明确说自己不想回神思'), as these are stated facts, not inferences.\n\n"
+        "Good examples:\n"
+        "- 发改委项目要求所有功能入口整合为Chat形式。\n"
+        "- 菜单名称必须写作“企业库”，不得自行改名。\n"
+        "- Claude指出如果心里想走，Offer的最佳用法是直接走，不是回神思谈薪。\n"
+        "- 陕西西安售后岗位年薪应发1.1万元属于正常偏上的薪资水平。\n"
+        "- 赵传帅需在2026年6月18日前完成税收金融原型。\n"
+        "- 展示口径应为“开发区承载方向”，口径公式为“区县总览+差+2产业链+开发区承载方向”。\n"
+        "- 招商匹配包括落地区域、政策、人才、科技支撑。\n\n"
+        "Bad examples (do NOT output like this):\n"
+        "- 投促局项目由李善光负责且已四次汇报，毕局确认，凌云志85分，发改委要Chat入口。（Fails rule 1: compound sentence, must split into separate facts）\n"
+        "- [00:12] 嗯对的，赵传帅周四交原型。（Fails rule 2: contains timestamp, fillers, and an unanchored relative date '周四'. The extracted fact must anchor relative dates to absolute dates if context permits, e.g., '赵传帅需在2026-06-18前完成原型'。）\n"
+        "- Claude说很晚了让用户快去睡觉。（Fails rule 2: describes dialogue state, not a stable fact or stated recommendation/position）\n"
+        "- Claude说他把用户想离开神思的话浓缩成了第21条记忆且目前有23条条目。（Fails rule 2: contains transient statistics and slot numbering like '第21条' or '23条' which are unstable and change over time.）\n"
+        "- 用户存在用技术开发来逃避投递简历的心理避难模式。（Fails rule 3: infers psychological motives / abduction）\n\n"
+    )
 
     def __init__(self, model_call: Callable[[str], str]) -> None:
         self.model_call = model_call
@@ -67,41 +113,13 @@ class _LLMExtractor:
         response = self.model_call(prompt)
         return self._parse_response(response)
 
+    def get_prompt_hash(self) -> str:
+        import hashlib
+        return hashlib.sha256(self.PROMPT_INSTRUCTIONS.encode("utf-8")).hexdigest()
+
     def _build_prompt(self, raw_text: str, category: str) -> str:
         return (
-            "You are an atomic-fact extractor. Extract one atomic fact per line from the text below.\n\n"
-            "Rules for extraction:\n"
-            "1. Atomic Fact Extraction & Detail Preservation:\n"
-            "- ONE fact per line. No compound sentences.\n"
-            "- Each fact must be self-contained: understandable without the surrounding text.\n"
-            "- If the text contains multiple related claims, split them into separate facts.\n"
-            "- Aim for 5-25 words per fact. Never exceed 60 words / 80 tokens per fact.\n"
-            "- For Chinese text, split at Chinese sentence/clause boundaries （。；：） and keep each fact short.\n"
-            "- PRESERVE concrete details: never abstract or generalize specific numbers, versions, dates, formulas, salary/offer amounts, company/project names, menu names, or geographic locations (e.g., keep '6700元', '神思', '西安 Offer', '企业库' rather than generalizing them to 'salary', 'company', 'offer', 'menu name').\n\n"
-            "2. Factual Statements vs. Conversational Boilerplate (Verifiability Check):\n"
-            "- Only extract statements that assert stable, verifiable facts about the world. A valid fact must be something that, if taken out of context and read by a stranger three months later, can be verified as true or false.\n"
-            "- Also preserve explicit recommendations or stated positions (e.g., 'Claude recommends X', 'The document states Y is the preferred approach'), as these are stable assertions about what was advised.\n"
-            "- REJECT conversational scaffolding, filler words (e.g., '嗯', '对对对', '你重录', '哦', '啊', '对', '好吧'), and raw timestamps.\n"
-            "- REJECT transient system/dialogue state metrics, including fleeting statistics that change over time (e.g., number of active facts, memory slot numbers like '第21条', or current token counts), as these do not represent stable, long-term factual knowledge.\n"
-            "- REJECT statements that only describe dialogue state, temporary interactive status, or conversational boilerplate (e.g., reject 'Claude says it's time to sleep', 'goodnight', or metaphors like 'stockpiling ammo/wiping the gun'). Keep the spoken content only if it asserts a stable, verifiable factual claim or task specification (e.g., '赵传帅需在2026年6月18日周四前完成税收金融原型' or 'Claude指出如果心里想走，Offer的最佳用法是直接走').\n\n"
-            "3. NO Abductions or Motive Inferences:\n"
-            "- Do NOT extract psychological attributions or motive inferences about the user, regardless of whether they are inferred by the extractor or explicitly stated in the original text (e.g., reject '用户在逃避', '用户表示自己在逃避', '用户存在避难模式'). Focus strictly on stated facts and concrete assertions.\n"
-            "- Claude's own stated judgments and recommendations about the user's situation are NOT subject to this rule and should be evaluated under Rule 2.\n"
-            "- However, DO extract explicitly stated behavioral preferences or self-descriptions (e.g., '用户表示更倾向于先完成开发工作', '用户明确说自己不想回神思'), as these are stated facts, not inferences.\n\n"
-            "Good examples:\n"
-            "- 发改委项目要求所有功能入口整合为Chat形式。\n"
-            "- 菜单名称必须写作“企业库”，不得自行改名。\n"
-            "- Claude指出如果心里想走，Offer的最佳用法是直接走，不是回神思谈薪。\n"
-            "- 陕西西安售后岗位年薪应发1.1万元属于正常偏上的薪资水平。\n"
-            "- 赵传帅需在2026年6月18日前完成税收金融原型。\n"
-            "- 展示口径应为“开发区承载方向”，口径公式为“区县总览+差+2产业链+开发区承载方向”。\n"
-            "- 招商匹配包括落地区域、政策、人才、科技支撑。\n\n"
-            "Bad examples (do NOT output like this):\n"
-            "- 投促局项目由李善光负责且已四次汇报，毕局确认，凌云志85分，发改委要Chat入口。（Fails rule 1: compound sentence, must split into separate facts）\n"
-            "- [00:12] 嗯对的，赵传帅周四交原型。（Fails rule 2: contains timestamp, fillers, and an unanchored relative date '周四'. The extracted fact must anchor relative dates to absolute dates if context permits, e.g., '赵传帅需在2026-06-18前完成原型'。）\n"
-            "- Claude说很晚了让用户快去睡觉。（Fails rule 2: describes dialogue state, not a stable fact or stated recommendation/position）\n"
-            "- Claude说他把用户想离开神思的话浓缩成了第21条记忆且目前有23条条目。（Fails rule 2: contains transient statistics and slot numbering like '第21条' or '23条' which are unstable and change over time.）\n"
-            "- 用户存在用技术开发来逃避投递简历的心理避难模式。（Fails rule 3: infers psychological motives / abduction）\n\n"
+            f"{self.PROMPT_INSTRUCTIONS}"
             f"Category: {category}\n\n"
             "---\n"
             f"{raw_text}\n"

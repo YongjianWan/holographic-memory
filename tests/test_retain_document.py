@@ -334,3 +334,99 @@ class TestExtractors:
         extractor = _LLMExtractor(model_call=boom)
         with pytest.raises(RuntimeError, match="api down"):
             extractor.extract("prompt", "general")
+
+
+class TestExtractionRuns:
+    def test_retain_document_creates_and_tracks_run(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            text = "First long sentence to extract. Second long sentence to extract."
+            # Fallback extractor returns sentence splits as facts.
+            result = store.retain_document(text, source="doc-1")
+            run_id = result.get("extraction_run_id")
+            assert run_id is not None
+
+            # Verify extraction run record
+            run = store._conn.execute(
+                "SELECT * FROM extraction_runs WHERE run_id = ?", (run_id,)
+            ).fetchone()
+            assert run is not None
+            assert run["source_doc_id"] == result["doc_id"]
+            assert run["extractor_version"] == "fallback-v1"
+            assert len(run["prompt_hash"]) == 64
+            assert run["status"] == "success"
+            assert run["facts_returned"] == 2
+            assert run["facts_added"] == 2
+            assert run["facts_merged"] == 0
+
+            # Verify fact association
+            facts = store._conn.execute(
+                "SELECT fact_id, content, extraction_run_id FROM facts WHERE extraction_run_id = ?",
+                (run_id,),
+            ).fetchall()
+            assert len(facts) == 2
+            for fact in facts:
+                assert fact["extraction_run_id"] == run_id
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_retain_document_tracks_merges(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            text = "Unique fact statement that will be retained once."
+            res1 = store.retain_document(text, source="doc-1")
+            run_id_1 = res1["extraction_run_id"]
+
+            run1 = store._conn.execute(
+                "SELECT * FROM extraction_runs WHERE run_id = ?", (run_id_1,)
+            ).fetchone()
+            assert run1["facts_added"] == 1
+            assert run1["facts_merged"] == 0
+
+            # Retain again - exact duplicate triggers unique constraint and updates/merges.
+            res2 = store.retain_document(text, source="doc-2")
+            run_id_2 = res2["extraction_run_id"]
+
+            run2 = store._conn.execute(
+                "SELECT * FROM extraction_runs WHERE run_id = ?", (run_id_2,)
+            ).fetchone()
+            assert run2["facts_added"] == 0
+            assert run2["facts_merged"] == 1
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_extraction_runs_failed(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            def boom(_: str) -> str:
+                raise RuntimeError("forced extraction failure")
+
+            extractor = _LLMExtractor(model_call=boom)
+            result = store.retain_document("Some text", extractor=extractor)
+            assert result["status"] == "document_stored_extraction_failed"
+            assert len(result["extraction_errors"]) == 1
+
+            # Check that a failed run was recorded
+            run = store._conn.execute(
+                "SELECT * FROM extraction_runs ORDER BY run_id DESC LIMIT 1"
+            ).fetchone()
+            assert run is not None
+            assert run["status"] == "failed"
+            assert run["extractor_version"] == "llm-v1"
+            assert run["facts_added"] == 0
+            assert run["facts_merged"] == 0
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+

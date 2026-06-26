@@ -1,1 +1,0 @@
-C:/Users/sdses/.vivian/SOUL.md

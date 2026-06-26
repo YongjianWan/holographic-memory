@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-06-24T15:03:36",
+  "generated_at": "2026-06-24T20:56:28",
   "source_db": "C:\\Users\\sdses\\AppData\\Local\\hermes\\memory_store.db",
-  "snapshot_db": "reports\\snapshots\\memory_store_snapshot_20260624_150336.db",
+  "snapshot_db": "reports\\snapshots\\memory_store_snapshot_20260624_205628.db",
   "schema_version": 8,
   "integrity_check": "ok",
   "foreign_key_violations": [],
-  "facts_total": 2741,
-  "facts_active": 1051,
-  "facts_soft_deleted": 1690,
+  "facts_total": 3181,
+  "facts_active": 1034,
+  "facts_soft_deleted": 2147,
   "documents_total": 9,
   "active_by_category": [
     {
       "category": "project",
-      "active_facts": 933
+      "active_facts": 917
     },
     {
       "category": "personal",
@@ -20,7 +20,7 @@
     },
     {
       "category": "user_pref",
-      "active_facts": 6
+      "active_facts": 5
     },
     {
       "category": "general",
@@ -30,7 +30,7 @@
   "active_by_doc": [
     {
       "source_doc_id": null,
-      "active_facts": 29
+      "active_facts": 28
     },
     {
       "source_doc_id": 1,
@@ -50,7 +50,7 @@
     },
     {
       "source_doc_id": 6,
-      "active_facts": 258
+      "active_facts": 264
     },
     {
       "source_doc_id": 7,
@@ -58,7 +58,7 @@
     },
     {
       "source_doc_id": 8,
-      "active_facts": 240
+      "active_facts": 218
     },
     {
       "source_doc_id": 9,
@@ -68,7 +68,7 @@
   "soft_deleted_by_doc": [
     {
       "source_doc_id": null,
-      "soft_deleted_facts": 1
+      "soft_deleted_facts": 2
     },
     {
       "source_doc_id": 5,
@@ -76,11 +76,11 @@
     },
     {
       "source_doc_id": 6,
-      "soft_deleted_facts": 530
+      "soft_deleted_facts": 772
     },
     {
       "source_doc_id": 8,
-      "soft_deleted_facts": 406
+      "soft_deleted_facts": 620
     },
     {
       "source_doc_id": 9,
@@ -126,8 +126,8 @@
     {
       "doc_id": 6,
       "source": "C:\\Users\\sdses\\Desktop\\招商会议.txt",
-      "active_facts": 258,
-      "soft_deleted_facts": 530,
+      "active_facts": 264,
+      "soft_deleted_facts": 772,
       "created_at": "2026-06-23 01:47:12"
     },
     {
@@ -140,8 +140,8 @@
     {
       "doc_id": 8,
       "source": "C:\\Users\\sdses\\Desktop\\招商2.txt",
-      "active_facts": 240,
-      "soft_deleted_facts": 406,
+      "active_facts": 218,
+      "soft_deleted_facts": 620,
       "created_at": "2026-06-23 01:47:14"
     },
     {
@@ -153,7 +153,7 @@
     }
   ],
   "merge_targets": 1,
-  "merge_events": 1690,
+  "merge_events": 2147,
   "source_lost_candidates": 0,
   "meta_candidates": [
     {
@@ -203,12 +203,6 @@
       "source_doc_id": null,
       "length": 274,
       "content": "Skill curation decisions: hermes-self-audit merged into hermes-agent as references/. skill-evaluator merged into l4-skill-forge as evaluation framework. excalidraw-diagram-generator merged into excalidraw. dispatching-parallel-agents merged into subagent-driven-development."
-    },
-    {
-      "fact_id": 14,
-      "source_doc_id": null,
-      "length": 261,
-      "content": "User is Shensi (Shensi Electronics) project manager. Creator and maintainer of Kimi CLI skill library (43+ skills: shensi-pm-suite, l4-skill-forge, role-* series, etc.). When user recommends skills/tools, treat as authoritative source - learn rather than judge."
     },
     {
       "fact_id": 21,
@@ -365,18 +359,6 @@
       "source_doc_id": 4,
       "length": 18,
       "content": "文件命名规则格式为主题_日期_版本。"
-    },
-    {
-      "fact_id": 1000603,
-      "source_doc_id": 8,
-      "length": 17,
-      "content": "孔畅需要进一步研究项目库使用规则。"
-    },
-    {
-      "fact_id": 1219,
-      "source_doc_id": 8,
-      "length": 15,
-      "content": "届时再研究权限逻辑和管理规则。"
     }
   ],
   "memory_banks": [
@@ -392,8 +374,8 @@
     },
     {
       "bank_name": "cat:project",
-      "fact_count": 933,
-      "snr_estimate_1024": 1.048
+      "fact_count": 917,
+      "snr_estimate_1024": 1.057
     },
     {
       "bank_name": "cat:user_pref",

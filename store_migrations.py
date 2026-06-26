@@ -25,6 +25,20 @@ CREATE TABLE IF NOT EXISTS documents (
     updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS extraction_runs (
+    run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_doc_id INTEGER,
+    extractor_version VARCHAR(32) NOT NULL,
+    prompt_hash VARCHAR(64) NOT NULL,
+    run_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(16) DEFAULT 'success',
+    facts_returned INTEGER DEFAULT 0,
+    facts_added INTEGER DEFAULT 0,
+    facts_merged INTEGER DEFAULT 0,
+    cleaning_status VARCHAR(16) DEFAULT 'pending',
+    FOREIGN KEY(source_doc_id) REFERENCES documents(doc_id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS facts (
     fact_id         INTEGER PRIMARY KEY AUTOINCREMENT,
     content         TEXT NOT NULL UNIQUE,
@@ -38,7 +52,8 @@ CREATE TABLE IF NOT EXISTS facts (
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     source_doc_id   INTEGER REFERENCES documents(doc_id) ON DELETE SET NULL,
     hrr_vector      BLOB,
-    merged_into     INTEGER REFERENCES facts(fact_id) ON DELETE SET NULL
+    merged_into     INTEGER REFERENCES facts(fact_id) ON DELETE SET NULL,
+    extraction_run_id INTEGER REFERENCES extraction_runs(run_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS entities (
@@ -257,6 +272,37 @@ def _migration_v6_fts_fix_merged_coverage(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO facts_fts(facts_fts) VALUES ('rebuild')")
 
 
+def _migration_v9_extraction_runs(conn: sqlite3.Connection) -> None:
+    """Add extraction_runs table and link facts to it."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS extraction_runs (
+            run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_doc_id INTEGER,
+            extractor_version VARCHAR(32) NOT NULL,
+            prompt_hash VARCHAR(64) NOT NULL,
+            run_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            status VARCHAR(16) DEFAULT 'success',
+            facts_returned INTEGER DEFAULT 0,
+            facts_added INTEGER DEFAULT 0,
+            facts_merged INTEGER DEFAULT 0,
+            cleaning_status VARCHAR(16) DEFAULT 'pending',
+            FOREIGN KEY(source_doc_id) REFERENCES documents(doc_id) ON DELETE SET NULL
+        )
+        """
+    )
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(facts)").fetchall()}
+    if "extraction_run_id" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE facts
+            ADD COLUMN extraction_run_id INTEGER
+                REFERENCES extraction_runs(run_id)
+                ON DELETE SET NULL
+            """
+        )
+
+
 _MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _migration_v1_ensure_hrr_vector,
     _migration_v2_documents,
@@ -266,6 +312,7 @@ _MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _migration_v6_fts_fix_merged_coverage,
     _migration_v7_gc_log,
     _migration_v8_retrieval_recency,
+    _migration_v9_extraction_runs,
 ]
 
 
@@ -321,6 +368,8 @@ def _detect_schema_version(conn: sqlite3.Connection) -> int:
         and "gc_log" in tables
         and "last_accessed_at" in fact_columns
     ):
+        if "extraction_runs" in tables and "extraction_run_id" in fact_columns:
+            return 9
         return 8
     if latest_core and "gc_log" in tables:
         return 7

@@ -324,6 +324,7 @@ class MemoryStore:
         content: str,
         tags: str,
         source_doc_id: int | None = None,
+        extraction_run_id: int | None = None,
         *,
         commit: bool = True,
         rebuild_bank: bool = True,
@@ -336,7 +337,7 @@ class MemoryStore:
         otherwise the new one is applied.
         """
         row = self._conn.execute(
-            "SELECT fact_id, content, tags, trust_score, category, source_doc_id "
+            "SELECT fact_id, content, tags, trust_score, category, source_doc_id, extraction_run_id "
             "FROM facts WHERE fact_id = ?",
             (existing_id,),
         ).fetchone()
@@ -348,9 +349,11 @@ class MemoryStore:
         old_trust: float = row["trust_score"]
         category: str = row["category"]
         old_source_doc_id: int | None = row["source_doc_id"]
+        old_run_id: int | None = row["extraction_run_id"]
 
-        # Keep an existing source link; otherwise adopt the new one.
+        # Keep an existing source/run link; otherwise adopt the new one.
         merged_source_doc_id = old_source_doc_id if old_source_doc_id is not None else source_doc_id
+        merged_run_id = old_run_id if old_run_id is not None else extraction_run_id
 
         # Entity count for the existing fact (new content entities extracted below).
         old_entity_count = self._conn.execute(
@@ -383,11 +386,12 @@ class MemoryStore:
                         tags = ?,
                         trust_score = ?,
                         source_doc_id = ?,
+                        extraction_run_id = ?,
                         retrieval_count = retrieval_count + 1,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE fact_id = ?
                     """,
-                    (content, merged_tags, new_trust, merged_source_doc_id, existing_id),
+                    (content, merged_tags, new_trust, merged_source_doc_id, merged_run_id, existing_id),
                 )
                 # Re-extract entities and recompute HRR for the new wording.
                 self._conn.execute(
@@ -417,11 +421,12 @@ class MemoryStore:
             SET tags = ?,
                 trust_score = ?,
                 source_doc_id = ?,
+                extraction_run_id = ?,
                 retrieval_count = retrieval_count + 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE fact_id = ?
             """,
-            (merged_tags, new_trust, merged_source_doc_id, existing_id),
+            (merged_tags, new_trust, merged_source_doc_id, merged_run_id, existing_id),
         )
         if commit:
             self._conn.commit()
@@ -461,6 +466,8 @@ class MemoryStore:
         source_doc_id: int | None = None,
         trust: float | None = None,
         rebuild_bank: bool = True,
+        extraction_run_id: int | None = None,
+        _out_info: dict | None = None,
     ) -> int:
         """Insert a fact and return its fact_id.
 
@@ -491,21 +498,26 @@ class MemoryStore:
                         content,
                         tags,
                         source_doc_id,
+                        extraction_run_id,
                         commit=False,
                         rebuild_bank=rebuild_bank,
                     )
+                    if _out_info is not None:
+                        _out_info["is_merged"] = True
                     self._conn.commit()
                     return fact_id
 
                 # Exact duplicate fallback (UNIQUE constraint).
                 cur = self._conn.execute(
                     """
-                    INSERT INTO facts (content, category, tags, trust_score, source_doc_id)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO facts (content, category, tags, trust_score, source_doc_id, extraction_run_id)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (content, category, tags, initial_trust, source_doc_id),
+                    (content, category, tags, initial_trust, source_doc_id, extraction_run_id),
                 )
                 fact_id: int = cur.lastrowid  # type: ignore[assignment]
+                if _out_info is not None:
+                    _out_info["is_new"] = True
 
                 # Entity extraction and linking.
                 entity_names = entities.extract_entities(content)
@@ -526,7 +538,7 @@ class MemoryStore:
             except sqlite3.IntegrityError:
                 self._conn.rollback()
                 row = self._conn.execute(
-                    "SELECT fact_id, category, merged_into FROM facts WHERE content = ?",
+                    "SELECT fact_id, category, merged_into, source_doc_id, extraction_run_id FROM facts WHERE content = ?",
                     (content,),
                 ).fetchone()
                 if row is None:
@@ -537,12 +549,34 @@ class MemoryStore:
                     self._conn.execute("BEGIN IMMEDIATE")
                     self._conn.execute(
                         "UPDATE facts SET merged_into = NULL, trust_score = ?, "
+                        "source_doc_id = CASE WHEN source_doc_id IS NULL THEN ? ELSE source_doc_id END, "
+                        "extraction_run_id = CASE WHEN extraction_run_id IS NULL THEN ? ELSE extraction_run_id END, "
                         "updated_at = CURRENT_TIMESTAMP WHERE fact_id = ?",
-                        (initial_trust, existing_id),
+                        (initial_trust, source_doc_id, extraction_run_id, existing_id),
                     )
                     if rebuild_bank:
                         self._rebuild_bank(existing_category, commit=False)
+                    if _out_info is not None:
+                        _out_info["is_merged"] = True
                     self._conn.commit()
+                else:
+                    old_source_doc_id = row["source_doc_id"]
+                    old_run_id = row["extraction_run_id"]
+                    if (old_source_doc_id is None and source_doc_id is not None) or (old_run_id is None and extraction_run_id is not None):
+                        self._conn.execute("BEGIN IMMEDIATE")
+                        self._conn.execute(
+                            """
+                            UPDATE facts
+                            SET source_doc_id = CASE WHEN source_doc_id IS NULL THEN ? ELSE source_doc_id END,
+                                extraction_run_id = CASE WHEN extraction_run_id IS NULL THEN ? ELSE extraction_run_id END,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE fact_id = ?
+                            """,
+                            (source_doc_id, extraction_run_id, existing_id),
+                        )
+                        self._conn.commit()
+                    if _out_info is not None:
+                        _out_info["is_merged"] = True
                 return existing_id
             except Exception:
                 self._conn.rollback()
@@ -603,45 +637,103 @@ class MemoryStore:
         # splits on Chinese text.
         chunks = _chunk_text(raw_text, max_chunk_tokens)
 
+        extractor_version = getattr(extractor, "version", extractor.kind)
+        prompt_hash = extractor.get_prompt_hash()
+
+        with self._lock:
+            cur = self._conn.execute(
+                """
+                INSERT INTO extraction_runs (source_doc_id, extractor_version, prompt_hash, status, cleaning_status)
+                VALUES (?, ?, ?, 'running', 'pending')
+                """,
+                (doc_id, extractor_version, prompt_hash),
+            )
+            self._conn.commit()
+            run_id = cur.lastrowid
+
         fact_ids: list[int] = []
         extraction_errors: list[dict] = []
         is_fallback = extractor.kind == "fallback"
         fact_trust = _FALLBACK_TRUST if is_fallback else None
         categories_to_rebuild: set[str] = set()
 
-        for chunk_index, chunk in enumerate(chunks, start=1):
-            try:
-                chunk_facts = extractor.extract(chunk, category)
-            except Exception as exc:
-                # A failed chunk should not kill the whole document.
-                extraction_errors.append(
-                    {
-                        "chunk": chunk_index,
-                        "error_type": type(exc).__name__,
-                        "message": str(exc)[:500],
-                    }
-                )
-                continue
-            for fact in chunk_facts:
-                fact = fact.strip()
-                if not fact:
-                    continue
-                try:
-                    fact_id = self.add_fact(
-                        fact,
-                        category=category,
-                        source_doc_id=doc_id,
-                        trust=fact_trust,
-                        rebuild_bank=False,
-                    )
-                    fact_ids.append(fact_id)
-                    categories_to_rebuild.add(category)
-                except Exception:
-                    # A single bad fact should not kill the whole batch.
-                    continue
+        facts_returned = 0
+        facts_added = 0
+        facts_merged = 0
 
-        for changed_category in sorted(categories_to_rebuild):
-            self._rebuild_bank(changed_category)
+        try:
+            for chunk_index, chunk in enumerate(chunks, start=1):
+                try:
+                    chunk_facts = extractor.extract(chunk, category)
+                except Exception as exc:
+                    # A failed chunk should not kill the whole document.
+                    extraction_errors.append(
+                        {
+                            "chunk": chunk_index,
+                            "error_type": type(exc).__name__,
+                            "message": str(exc)[:500],
+                        }
+                    )
+                    continue
+                for fact in chunk_facts:
+                    fact = fact.strip()
+                    if not fact:
+                        continue
+                    facts_returned += 1
+                    try:
+                        out_info: dict = {}
+                        fact_id = self.add_fact(
+                            fact,
+                            category=category,
+                            source_doc_id=doc_id,
+                            trust=fact_trust,
+                            rebuild_bank=False,
+                            extraction_run_id=run_id,
+                            _out_info=out_info,
+                        )
+                        fact_ids.append(fact_id)
+                        if out_info.get("is_new"):
+                            facts_added += 1
+                        elif out_info.get("is_merged"):
+                            facts_merged += 1
+                        categories_to_rebuild.add(category)
+                    except Exception:
+                        # A single bad fact should not kill the whole batch.
+                        continue
+
+            for changed_category in sorted(categories_to_rebuild):
+                self._rebuild_bank(changed_category)
+
+            run_status = "failed" if extraction_errors else "success"
+
+            with self._lock:
+                self._conn.execute(
+                    """
+                    UPDATE extraction_runs
+                    SET status = ?,
+                        facts_returned = ?,
+                        facts_added = ?,
+                        facts_merged = ?
+                    WHERE run_id = ?
+                    """,
+                    (run_status, facts_returned, facts_added, facts_merged, run_id),
+                )
+                self._conn.commit()
+        except Exception:
+            with self._lock:
+                self._conn.execute(
+                    """
+                    UPDATE extraction_runs
+                    SET status = 'failed',
+                        facts_returned = ?,
+                        facts_added = ?,
+                        facts_merged = ?
+                    WHERE run_id = ?
+                    """,
+                    (facts_returned, facts_added, facts_merged, run_id),
+                )
+                self._conn.commit()
+            raise
 
         if fact_ids:
             status = "ok"
@@ -651,6 +743,7 @@ class MemoryStore:
             status = "document_stored_no_facts"
         return {
             "doc_id": doc_id,
+            "extraction_run_id": run_id,
             "facts_added": len(fact_ids),
             "extractor_kind": extractor.kind,
             "fact_ids": fact_ids,
