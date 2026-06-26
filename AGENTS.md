@@ -20,7 +20,7 @@ hermes config set memory.provider holographic
 
 工具：
 
-- `fact_store` — 10 actions: add, retain, search, probe, related, reason, contradict, update, remove, list, normalize, consolidate.
+- `fact_store` — 12 actions: add, retain, search, probe, related, reason, contradict, update, remove, list, normalize, consolidate.
 - `fact_feedback` — helpful/unhelpful，非对称调整 trust。
 
 跑测试：
@@ -28,6 +28,8 @@ hermes config set memory.provider holographic
 ```bash
 pytest tests/
 ```
+
+当前 WSL 环境可能没有 `python` / `pytest` 命令；不要把工具缺失误判成项目坏了。至少先用可用入口跑 `python3 -c "import holographic"`；完整 pytest 以项目当前有效 Python 环境为准。
 
 eval 脚本（需 `DEEPSEEK_API_KEY`，结果输出到 `reports/`）：
 
@@ -57,7 +59,7 @@ Holographic Memory 是 hermes-agent 的一个 **MemoryProvider 插件**：用本
 C:/Users/sdses/Desktop/随机小项目/holographic/          # 本仓库（工作目录）
 ├── __init__.py          # 插件入口：MemoryProvider 实现、工具分发、配置、on_session_end
 ├── store.py             # MemoryStore  orchestration：事实 CRUD、实体链接、HRR 向量生成、配置
-├── store_migrations.py  # SQLite schema、_SCHEMA、migration v1-v8 及基线检测
+├── store_migrations.py  # SQLite schema、_SCHEMA、migration v1-v9 及基线检测
 ├── entities.py          # 实体抽取、解析、名称/别名匹配、归一化守门
 ├── extractors.py        # 文档→fact 提取器协议、fallback/LLM 提取器、LLM consolidator
 ├── consolidation.py     # 语义合并候选发现、LLM 守卫、merged_into 软删除
@@ -163,13 +165,13 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 | RRF 三路融合（RQ）                                    | ✅ 已实现         | `retrieval.py`                 |
 | entity 归一化（P1-1）                                 | ✅ 已实现         | `entities.py` / `store.py`     |
 | 近重复检测（P0）                                      | ✅ 已实现         | `store.py`                     |
-| migration 框架 +`schema_version`                    | ✅ 已实现 (v1-v8) | `store_migrations.py`          |
+| migration 框架 +`schema_version`                    | ✅ 已实现 (v1-v9) | `store_migrations.py`          |
 | `documents` 表 + `facts.source_doc_id`            | ✅ 已实现         | `store_migrations.py` / `store.py` |
 | `documents.text_hash` 去重                          | ✅ 已实现         | `store_migrations.py` / `store.py` |
 | 文档入口 `retain_document`（§3.5）                 | ✅ 已实现         | `store.py` / `extractors.py` / `__init__.py` |
 | `facts.merged_into` 软删除 & 语义合并（P1-2）       | ✅ 已实现         | `consolidation.py` / `store.py` / `retrieval.py` |
 | 惰性维护锁 + 实时 retrieval recency（P1）             | ✅ 已实现         | `memory_gc.py` / `retrieval.py` / `store.py` |
-| `fact_edges` 图边 + CTE 多跳（P2）                  | ❌ 已否决         | 见 [ROADMAP.md](ROADMAP.md)：380 条真实数据实测 fan-out 0.811 / shared pairs 29 对，不满足建图条件 |
+| `fact_edges` 图边 + CTE 多跳（P2）                  | ❌ veto / 冻结    | 见 [ROADMAP.md](ROADMAP.md)：真实数据 fan-out 不支持；除非新快照和真实查询需求同时解冻，否则不重启 |
 
 ## 4. 开发约定
 
@@ -214,12 +216,12 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 - **P1 必须先做 entity 归一化，再做 P2 建边**——边来自 entity，entity 碎裂则边全脏。
 - entity 归一化必须加 **numeric/date/version signature 守门**："K2" 与 "K2.7" 是层级不是碎裂，不能靠字符串相似度硬合。
 - entity 归一化阈值要保守：默认 edit ≥ 0.85 或 token ≥ 0.9 才合并，宁可漏合、不错合。
-- **P2 边默认只做 `shared-entity` 无类型边**；有类型边（supports/contradicts/...）是 P2.5，必须有真实查询需求才做。
+- **P2 边当前 veto / 冻结**：不要把 shared-entity 边当作默认下一步。只有未来真实快照证明 entity fan-out 明显回升，且出现必须靠图才能答的真实查询时，才重新评估；P2.5 LLM 有类型边默认不做。
 
 ### 4.5 常驻进程红线
 
 - 不能用 OS cron / anacron / 独立 worker。
-- 周期性任务必须挂在 hermes 进程内（如 `on_session_end`、asyncio 惰性定时器、启动时补漏）， hermes 不在就跑不了，回来时按时间戳一次性补齐。
+- 周期性任务必须挂在任一活着的插件实例内（如 `initialize`、`on_session_end`、retain 后或惰性定时器醒来时检查），通过 SQLite 写锁抢到才跑，抢不到立刻跳过；没有独立常驻调度件，回来时按时间戳一次性补齐。
 
 ### 4.6 LLM 使用原则
 
@@ -232,7 +234,7 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 - **定位**：只做 induction（跨领域结构相似性识别），不做 deduction（从前提推出新事实断言），不做 abduction（从行为模式反推/揣测用户的内在动机或心理状态）。抽结构，不抽人。
 - **非空闸门**：产出的每条 observation 必须包含 `source_fact_ids`（fact ID 列表），且长度必须 $\ge 2$（单条 fact 不构成“跨话题”）。空列表直接拒绝入库。若涉及表结构变更必须走 migration（§4.2 铁律）。
 - **预期管理与依赖底线**：承认通用模型跨话题归纳逻辑较松的质量天花板，依靠出口闸（非空校验）过滤噪音，绝不因为召回/质量问题而引入 embedding、自训模型或常驻进程。若产物糙到无法使用，则证明该方向在无常驻/零依赖约束下不成立，应直接砍掉 P1-4，不妥协核心红线。
-- **生效条件**：gated on 「数据填充 + Gate A 审计通过」。Gate A 没过之前，此功能一行代码不写。
+- **生效条件**：Gate A 已人手复核 GO，但实现仍必须遵守本节边界；具体进入编码前看 `SESSION.md` / `ROADMAP.md` 的当前优先级。
 评测前先固定评测集,且先验评判器自身稳定性。 抽样池在变(洗库中)时,两次随机抽样的合格率不可横向比较——这会制造"成果幻觉"(我们真的制造了一个:86%→70% 当成 Doc 6 修好,实际是抽样噪音+抽错文件)。锁 fact id 不锁 seed;先用固定 control 验评判器判定一致,再量被测物。
 ## 5. 未来路线
 

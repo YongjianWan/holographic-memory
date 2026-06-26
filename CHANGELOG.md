@@ -73,6 +73,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refreshed `AGENTS.md` against the current constitution/session posture:
+  migration status now says v9, P2 is documented as veto/frozen, periodic
+  maintenance is described as any-live-instance with SQLite locking, and P1-4
+  reflects Gate A GO while preserving its implementation guardrails.
+- Realigned status documentation after the checkpoint commit: `SESSION.md`
+  is now the single current-state source, `ROADMAP.md` reflects the current
+  `schema v9` ledger / Gate A GO / Gate B NO-GO posture, and `TECH_DEBT.md`
+  separates source provenance from scope-gate decisions.
 - Consolidated assistant-facing documentation: `AGENTS.md` is now the single
   work entrypoint, project discipline formerly delegated to `SOUL.md` is folded
   into `AGENTS.md` / `docs/宪法.md`, including the external SOUL priority stack,
