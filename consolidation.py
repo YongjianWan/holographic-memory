@@ -336,6 +336,7 @@ def consolidate_facts(
                             "UPDATE facts SET merged_into = ? WHERE fact_id = ?",
                             (new_fact_id, old_id),
                         )
+                        store._repoint_fact_provenance(old_id, new_fact_id)
                         cluster_facts_merged += 1
 
                 for cat in cluster_categories:

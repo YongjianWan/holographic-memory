@@ -9,7 +9,11 @@ from pathlib import Path
 import pytest
 
 from holographic.store import MemoryStore
-from holographic.store_migrations import _migration_v2_documents, _migration_v3_document_hash
+from holographic.store_migrations import (
+    _migration_v2_documents,
+    _migration_v3_document_hash,
+    _migration_v10_fact_provenance,
+)
 
 
 class TestMigrations:
@@ -66,7 +70,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT trust_score, last_accessed_at FROM facts"
             ).fetchone()
-            assert version == 9
+            assert version == 10
             assert row["trust_score"] == pytest.approx(0.8)
             assert row["last_accessed_at"] is None
             assert Path(f"{db_path}.bak.v7").exists()
@@ -87,7 +91,7 @@ class TestMigrations:
             assert row is not None
             # _SCHEMA is the latest structure, so a fresh DB is recognised as
             # already at the latest version and no migrations (and no backup) are needed.
-            assert int(row["version"]) == 9
+            assert int(row["version"]) == 10
 
             tables = {
                 r["name"]
@@ -96,6 +100,7 @@ class TestMigrations:
                 ).fetchall()
             }
             assert "documents" in tables
+            assert "fact_provenance" in tables
 
             fact_columns = {
                 r[1]
@@ -153,7 +158,7 @@ class TestMigrations:
                 "SELECT version FROM schema_version"
             ).fetchone()
             # Should end at the latest version (migrations applied after baseline v0).
-            assert int(row["version"]) == 9
+            assert int(row["version"]) == 10
 
             columns = {
                 r[1]
@@ -204,7 +209,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            assert int(row["version"]) == 9
+            assert int(row["version"]) == 10
 
             columns = {
                 r[1]
@@ -261,6 +266,59 @@ class TestMigrations:
             store.close()
             Path(db_path).unlink(missing_ok=True)
 
+    def test_migration_v10_fact_provenance_is_forward_only(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            _migration_v10_fact_provenance(store._conn)
+
+            tables = {
+                r["name"]
+                for r in store._conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            assert "fact_provenance" in tables
+
+            columns = {
+                r[1]
+                for r in store._conn.execute("PRAGMA table_info(fact_provenance)").fetchall()
+            }
+            assert {
+                "provenance_id",
+                "fact_id",
+                "doc_id",
+                "source_fact_id",
+                "relation",
+                "created_at",
+            }.issubset(columns)
+
+            indexes = {
+                r["name"]
+                for r in store._conn.execute(
+                    "PRAGMA index_list(fact_provenance)"
+                ).fetchall()
+            }
+            assert "idx_fact_provenance_fact" in indexes
+            assert "idx_fact_provenance_doc" in indexes
+
+            store._conn.execute(
+                "INSERT INTO documents (doc_id, raw_text, text_hash) VALUES (1, 'doc', ?)",
+                ("a" * 64,),
+            )
+            store._conn.execute(
+                "INSERT INTO facts (fact_id, content, source_doc_id) VALUES (1, 'legacy fact', 1)"
+            )
+            store._conn.commit()
+
+            # v10 is forward-only: legacy facts keep no fake provenance rows.
+            assert store._conn.execute("SELECT COUNT(*) FROM fact_provenance").fetchone()[0] == 0
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
     def test_partial_v2_state_is_detected_as_lower_version(self) -> None:
         """Baseline detection uses AND: documents table without text_hash is not v3."""
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
@@ -297,7 +355,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            assert int(row["version"]) == 9
+            assert int(row["version"]) == 10
 
             columns = {
                 r[1]

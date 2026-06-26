@@ -432,6 +432,55 @@ class MemoryStore:
             self._conn.commit()
         return existing_id
 
+    def _default_source_fact_id(self, fact_id: int, source_fact_id: int | None) -> int:
+        return fact_id if source_fact_id is None else source_fact_id
+
+    def _record_fact_provenance(
+        self,
+        fact_id: int,
+        doc_id: int | None,
+        source_fact_id: int | None,
+        relation: str,
+    ) -> None:
+        """Record one forward provenance edge when a real source doc is known.
+
+        Legacy facts without rows intentionally project to ``legacy_unknown`` at
+        read time. Do not store placeholder provenance or a cached
+        has_provenance flag; absence is the honest state for pre-v10 data.
+        """
+        if doc_id is None or source_fact_id is None:
+            return
+        self._conn.execute(
+            """
+            INSERT OR IGNORE INTO fact_provenance
+                (fact_id, doc_id, source_fact_id, relation)
+            VALUES (?, ?, ?, ?)
+            """,
+            (fact_id, doc_id, source_fact_id, relation),
+        )
+
+    def _repoint_fact_provenance(self, old_fact_id: int, new_fact_id: int) -> None:
+        """Move provenance from a merged fact to the survivor.
+
+        The unique triple handles the dirty but expected case where two
+        near-duplicate facts came from the same source sentence and converge on
+        one survivor.
+        """
+        self._conn.execute(
+            """
+            INSERT OR IGNORE INTO fact_provenance
+                (fact_id, doc_id, source_fact_id, relation, created_at)
+            SELECT ?, doc_id, source_fact_id, relation, created_at
+            FROM fact_provenance
+            WHERE fact_id = ?
+            """,
+            (new_fact_id, old_fact_id),
+        )
+        self._conn.execute(
+            "DELETE FROM fact_provenance WHERE fact_id = ?",
+            (old_fact_id,),
+        )
+
     def _find_consolidation_candidates(
         self,
         category: str | None = None,
@@ -464,6 +513,7 @@ class MemoryStore:
         category: str = "general",
         tags: str = "",
         source_doc_id: int | None = None,
+        source_fact_id: int | None = None,
         trust: float | None = None,
         rebuild_bank: bool = True,
         extraction_run_id: int | None = None,
@@ -502,6 +552,12 @@ class MemoryStore:
                         commit=False,
                         rebuild_bank=rebuild_bank,
                     )
+                    self._record_fact_provenance(
+                        fact_id,
+                        source_doc_id,
+                        self._default_source_fact_id(fact_id, source_fact_id),
+                        "merge",
+                    )
                     if _out_info is not None:
                         _out_info["is_merged"] = True
                     self._conn.commit()
@@ -516,6 +572,12 @@ class MemoryStore:
                     (content, category, tags, initial_trust, source_doc_id, extraction_run_id),
                 )
                 fact_id: int = cur.lastrowid  # type: ignore[assignment]
+                self._record_fact_provenance(
+                    fact_id,
+                    source_doc_id,
+                    self._default_source_fact_id(fact_id, source_fact_id),
+                    "origin",
+                )
                 if _out_info is not None:
                     _out_info["is_new"] = True
 
@@ -554,6 +616,12 @@ class MemoryStore:
                         "updated_at = CURRENT_TIMESTAMP WHERE fact_id = ?",
                         (initial_trust, source_doc_id, extraction_run_id, existing_id),
                     )
+                    self._record_fact_provenance(
+                        existing_id,
+                        source_doc_id,
+                        self._default_source_fact_id(existing_id, source_fact_id),
+                        "merge",
+                    )
                     if rebuild_bank:
                         self._rebuild_bank(existing_category, commit=False)
                     if _out_info is not None:
@@ -562,17 +630,27 @@ class MemoryStore:
                 else:
                     old_source_doc_id = row["source_doc_id"]
                     old_run_id = row["extraction_run_id"]
-                    if (old_source_doc_id is None and source_doc_id is not None) or (old_run_id is None and extraction_run_id is not None):
+                    needs_metadata_update = (
+                        old_source_doc_id is None and source_doc_id is not None
+                    ) or (old_run_id is None and extraction_run_id is not None)
+                    if needs_metadata_update or source_doc_id is not None:
                         self._conn.execute("BEGIN IMMEDIATE")
-                        self._conn.execute(
-                            """
-                            UPDATE facts
-                            SET source_doc_id = CASE WHEN source_doc_id IS NULL THEN ? ELSE source_doc_id END,
-                                extraction_run_id = CASE WHEN extraction_run_id IS NULL THEN ? ELSE extraction_run_id END,
-                                updated_at = CURRENT_TIMESTAMP
-                            WHERE fact_id = ?
-                            """,
-                            (source_doc_id, extraction_run_id, existing_id),
+                        if needs_metadata_update:
+                            self._conn.execute(
+                                """
+                                UPDATE facts
+                                SET source_doc_id = CASE WHEN source_doc_id IS NULL THEN ? ELSE source_doc_id END,
+                                    extraction_run_id = CASE WHEN extraction_run_id IS NULL THEN ? ELSE extraction_run_id END,
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE fact_id = ?
+                                """,
+                                (source_doc_id, extraction_run_id, existing_id),
+                            )
+                        self._record_fact_provenance(
+                            existing_id,
+                            source_doc_id,
+                            self._default_source_fact_id(existing_id, source_fact_id),
+                            "merge",
                         )
                         self._conn.commit()
                     if _out_info is not None:
@@ -689,6 +767,7 @@ class MemoryStore:
                             trust=fact_trust,
                             rebuild_bank=False,
                             extraction_run_id=run_id,
+                            source_fact_id=facts_returned,
                             _out_info=out_info,
                         )
                         fact_ids.append(fact_id)

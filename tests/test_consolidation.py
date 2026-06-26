@@ -135,11 +135,28 @@ class TestConsolidationTransaction:
     def test_consolidate_facts_success(self, store: MemoryStore) -> None:
         # Add source document
         store._conn.execute("INSERT INTO documents (raw_text, text_hash) VALUES ('Mia profile', 'hash1')")
-        doc_id = store._conn.execute("SELECT doc_id FROM documents").fetchone()["doc_id"]
+        store._conn.execute("INSERT INTO documents (raw_text, text_hash) VALUES ('Mia promo', 'hash1b')")
+        docs = store._conn.execute("SELECT doc_id FROM documents ORDER BY doc_id").fetchall()
+        doc_id = docs[0]["doc_id"]
+        doc_id_2 = docs[1]["doc_id"]
 
         # Double quote "Mia" to extract it as an entity
-        fid1 = store.add_fact('"Mia" works as Senior Dev', category="project", tags="work,dev", source_doc_id=doc_id, trust=0.8)
-        fid2 = store.add_fact('"Mia" is promoted to Principal Dev', category="project", tags="work,promo", trust=0.6)
+        fid1 = store.add_fact(
+            '"Mia" works as Senior Dev',
+            category="project",
+            tags="work,dev",
+            source_doc_id=doc_id,
+            source_fact_id=1,
+            trust=0.8,
+        )
+        fid2 = store.add_fact(
+            '"Mia" is promoted to Principal Dev',
+            category="project",
+            tags="work,promo",
+            source_doc_id=doc_id_2,
+            source_fact_id=1,
+            trust=0.6,
+        )
 
         # Set retrieval/helpful counts
         store._conn.execute("UPDATE facts SET retrieval_count = 10, helpful_count = 5 WHERE fact_id = ?", (fid1,))
@@ -178,6 +195,27 @@ class TestConsolidationTransaction:
         assert len(old_facts) == 2
         for f in old_facts:
             assert f["merged_into"] == new_fact["fact_id"]
+
+        provenance_rows = store._conn.execute(
+            """
+            SELECT fact_id, doc_id, source_fact_id
+            FROM fact_provenance
+            WHERE fact_id = ?
+            ORDER BY doc_id, source_fact_id
+            """,
+            (new_fact["fact_id"],),
+        ).fetchall()
+        assert [tuple(row) for row in provenance_rows] == [
+            (new_fact["fact_id"], doc_id, 1),
+            (new_fact["fact_id"], doc_id_2, 1),
+        ]
+        assert (
+            store._conn.execute(
+                "SELECT COUNT(*) FROM fact_provenance WHERE fact_id IN (?, ?)",
+                (fid1, fid2),
+            ).fetchone()[0]
+            == 0
+        )
 
         # Verify entity links in fact_entities are preserved
         old_links = store._conn.execute("SELECT COUNT(*) FROM fact_entities WHERE fact_id IN (?, ?)", (fid1, fid2)).fetchone()[0]
@@ -344,4 +382,3 @@ class TestConsolidationTransaction:
         for pair in contradict_results:
             assert pair["fact_a"]["fact_id"] not in (fid1, fid2)
             assert pair["fact_b"]["fact_id"] not in (fid1, fid2)
-

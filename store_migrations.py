@@ -56,6 +56,22 @@ CREATE TABLE IF NOT EXISTS facts (
     extraction_run_id INTEGER REFERENCES extraction_runs(run_id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS fact_provenance (
+    provenance_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+    fact_id        INTEGER NOT NULL REFERENCES facts(fact_id) ON DELETE CASCADE,
+    doc_id         INTEGER NOT NULL REFERENCES documents(doc_id) ON DELETE CASCADE,
+    source_fact_id INTEGER NOT NULL,
+    relation       TEXT NOT NULL DEFAULT 'origin',
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(fact_id, doc_id, source_fact_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fact_provenance_fact
+    ON fact_provenance(fact_id);
+
+CREATE INDEX IF NOT EXISTS idx_fact_provenance_doc
+    ON fact_provenance(doc_id);
+
 CREATE TABLE IF NOT EXISTS entities (
     entity_id   INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT NOT NULL,
@@ -303,6 +319,46 @@ def _migration_v9_extraction_runs(conn: sqlite3.Connection) -> None:
         )
 
 
+def _migration_v10_fact_provenance(conn: sqlite3.Connection) -> None:
+    """Add forward-only provenance for facts retained from documents.
+
+    This migration intentionally does not backfill legacy rows. The current
+    production corpus has historical soft-deletes flattened into the 999999
+    audit marker, so old merge direction is no longer reconstructable. Empty
+    provenance for legacy facts is therefore a truthful read-time
+    ``legacy_unknown`` projection, not a stored state to "fix" with placeholders.
+
+    The uniqueness boundary is the full source triple. Multiple rows from the
+    same document are valid when they came from different source facts; exact
+    duplicate triples are ignored when merge redirection converges them.
+    """
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS fact_provenance (
+            provenance_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+            fact_id        INTEGER NOT NULL REFERENCES facts(fact_id) ON DELETE CASCADE,
+            doc_id         INTEGER NOT NULL REFERENCES documents(doc_id) ON DELETE CASCADE,
+            source_fact_id INTEGER NOT NULL,
+            relation       TEXT NOT NULL DEFAULT 'origin',
+            created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(fact_id, doc_id, source_fact_id)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_fact_provenance_fact
+            ON fact_provenance(fact_id)
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_fact_provenance_doc
+            ON fact_provenance(doc_id)
+        """
+    )
+
+
 _MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _migration_v1_ensure_hrr_vector,
     _migration_v2_documents,
@@ -313,6 +369,7 @@ _MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _migration_v7_gc_log,
     _migration_v8_retrieval_recency,
     _migration_v9_extraction_runs,
+    _migration_v10_fact_provenance,
 ]
 
 
@@ -369,6 +426,8 @@ def _detect_schema_version(conn: sqlite3.Connection) -> int:
         and "last_accessed_at" in fact_columns
     ):
         if "extraction_runs" in tables and "extraction_run_id" in fact_columns:
+            if "fact_provenance" in tables:
+                return 10
             return 9
         return 8
     if latest_core and "gc_log" in tables:

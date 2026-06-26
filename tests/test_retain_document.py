@@ -208,6 +208,142 @@ class TestRetainDocument:
             store.close()
             Path(db_path).unlink(missing_ok=True)
 
+    def test_add_fact_records_cross_document_provenance_for_merged_fact(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            store._conn.execute(
+                "INSERT INTO documents (doc_id, raw_text, text_hash, source) VALUES (1, 'doc 1', ?, 'doc-1')",
+                ("a" * 64,),
+            )
+            store._conn.execute(
+                "INSERT INTO documents (doc_id, raw_text, text_hash, source) VALUES (2, 'doc 2', ?, 'doc-2')",
+                ("b" * 64,),
+            )
+            store._conn.commit()
+
+            fact_id = store.add_fact(
+                "The provenance system stores merge lineage.",
+                source_doc_id=1,
+                source_fact_id=1,
+            )
+            merged_id = store.add_fact(
+                "The provenance system stores merge lineage.",
+                source_doc_id=2,
+                source_fact_id=1,
+            )
+
+            assert merged_id == fact_id
+            rows = store._conn.execute(
+                """
+                SELECT fact_id, doc_id, source_fact_id, relation
+                FROM fact_provenance
+                WHERE fact_id = ?
+                ORDER BY doc_id, source_fact_id
+                """,
+                (fact_id,),
+            ).fetchall()
+            assert [dict(row) for row in rows] == [
+                {
+                    "fact_id": fact_id,
+                    "doc_id": 1,
+                    "source_fact_id": 1,
+                    "relation": "origin",
+                },
+                {
+                    "fact_id": fact_id,
+                    "doc_id": 2,
+                    "source_fact_id": 1,
+                    "relation": "merge",
+                },
+            ]
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_add_fact_keeps_same_document_distinct_source_fact_provenance(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            store._conn.execute(
+                "INSERT INTO documents (doc_id, raw_text, text_hash, source) VALUES (1, 'doc', ?, 'doc')",
+                ("a" * 64,),
+            )
+            store._conn.commit()
+
+            fact_id = store.add_fact(
+                "The same document can mention one fact twice.",
+                source_doc_id=1,
+                source_fact_id=1,
+            )
+            store.add_fact(
+                "The same document can mention one fact twice.",
+                source_doc_id=1,
+                source_fact_id=2,
+            )
+
+            rows = store._conn.execute(
+                """
+                SELECT doc_id, source_fact_id
+                FROM fact_provenance
+                WHERE fact_id = ?
+                ORDER BY source_fact_id
+                """,
+                (fact_id,),
+            ).fetchall()
+            assert [tuple(row) for row in rows] == [(1, 1), (1, 2)]
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_merge_repoints_provenance_and_ignores_duplicate_source_triples(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            store._conn.execute(
+                "INSERT INTO documents (doc_id, raw_text, text_hash, source) VALUES (1, 'doc', ?, 'doc')",
+                ("a" * 64,),
+            )
+            store._conn.execute(
+                "INSERT INTO facts (fact_id, content, source_doc_id) VALUES (10, 'survivor', 1)"
+            )
+            store._conn.execute(
+                "INSERT INTO facts (fact_id, content, source_doc_id) VALUES (11, 'merged', 1)"
+            )
+            store._conn.execute(
+                """
+                INSERT INTO fact_provenance (fact_id, doc_id, source_fact_id, relation)
+                VALUES (10, 1, 1, 'origin'), (11, 1, 1, 'origin'), (11, 1, 2, 'origin')
+                """
+            )
+            store._conn.commit()
+
+            store._repoint_fact_provenance(11, 10)
+
+            rows = store._conn.execute(
+                """
+                SELECT fact_id, doc_id, source_fact_id
+                FROM fact_provenance
+                ORDER BY fact_id, doc_id, source_fact_id
+                """
+            ).fetchall()
+            assert [tuple(row) for row in rows] == [(10, 1, 1), (10, 1, 2)]
+            assert (
+                store._conn.execute(
+                    "SELECT COUNT(*) FROM fact_provenance WHERE fact_id = 11"
+                ).fetchone()[0]
+                == 0
+            )
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
     def test_add_fact_warns_when_hrr_capacity_exceeded(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
@@ -429,4 +565,3 @@ class TestExtractionRuns:
         finally:
             store.close()
             Path(db_path).unlink(missing_ok=True)
-
