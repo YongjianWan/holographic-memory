@@ -68,6 +68,7 @@
 - **source_doc_id 边界**：`source_doc_id` 是单值归属，不是完整 provenance；发生 merge 后不能用它推导完整来源。
 - **provenance 解耦于 scope Gate B**：`fact_provenance` 的动机是 merge 后来源可审计，不是 scope 分域；v10 已落地，不等 Gate B。
 - **legacy provenance 不回填**：当前历史 merge 链已被 `999999` marker 拍平，旧 active facts 无 provenance 行是诚实状态；`legacy_unknown` 必须读时派生，禁止写占位。
+- **有效期语义待设计**：`trust` 衰减只表示“越老越不确信”，不等于明确失效时点；“本周要交付”这类过期即死的信息归后续 extractor profile / lifecycle 设计，现在不提前写 schema。
 - **事实/废话判定边界规则**：LLM 提取 Prompt 必须做客观的“事实/对话噪音”判定，拒收纯互动、聊天状态描述、劝慰 and 隐喻性表述。
 - **强模型 + grep/FTS 路线**：embedding 缺失是有意取舍，不是当前 bug。检索层负责可审计候选召回和 provenance，理解留给当下 LLM；召回不足优先做 query reformulation，不先引入向量服务。
 - **P1-4 定位与红线定型**：只做 induction（抽结构不抽人），拒做 deduction/abduction（禁动机推断）。引入 `source_fact_ids >= 2` 非空硬闸。承认通用模型天花板，不加 embedding/自训模型等任何依赖，不行则砍。gated on Gate A 审计。
