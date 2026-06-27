@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for importing the repository's canonical docs into the live memory store.
   It supports dry-run listing, requires an LLM API key for writes, and creates
   a SQLite backup before mutating the live DB.
+- Dirty/meta candidate report script
+  (`tests/scripts/run_dirty_fact_candidates.py`) that snapshots the live DB,
+  scans active facts read-only, and writes manual-review JSON/Markdown reports
+  without mutating facts, schema, or provenance.
 - Local post-parse guardrails for LLM extraction output, rejecting common leaks
   such as dialogue state, sleep reminders, ammunition metaphors, memory slot
   chatter, motive inferences, and extractor self-talk before facts reach
