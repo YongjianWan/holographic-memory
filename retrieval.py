@@ -122,6 +122,7 @@ class FactRetriever:
         # Strip raw HRR bytes — callers expect JSON-serializable dicts.
         for fact in results:
             fact.pop("hrr_vector", None)
+        self.store.attach_provenance(results)
         self.store.record_retrievals({fact["fact_id"] for fact in results})
         return results
 
@@ -254,6 +255,7 @@ class FactRetriever:
 
         scored.sort(key=lambda x: x["score"], reverse=True)
         results = scored[:limit]
+        self.store.attach_provenance(results)
         self.store.record_retrievals({r["fact_id"] for r in results})
         return results
 
@@ -310,6 +312,7 @@ class FactRetriever:
 
         scored.sort(key=lambda x: x["score"], reverse=True)
         results = scored[:limit]
+        self.store.attach_provenance(results)
         self.store.record_retrievals({r["fact_id"] for r in results})
         return results
 
@@ -390,6 +393,7 @@ class FactRetriever:
 
         scored.sort(key=lambda x: x["score"], reverse=True)
         results = scored[:limit]
+        self.store.attach_provenance(results)
         self.store.record_retrievals({r["fact_id"] for r in results})
         return results
 
@@ -487,6 +491,7 @@ class FactRetriever:
                     # Strip hrr_vector from output (not JSON serializable)
                     f1_clean = {k: v for k, v in f1.items() if k != "hrr_vector"}
                     f2_clean = {k: v for k, v in f2.items() if k != "hrr_vector"}
+                    self.store.attach_provenance([f1_clean, f2_clean])
                     contradictions.append({
                         "fact_a": f1_clean,
                         "fact_b": f2_clean,
@@ -522,7 +527,7 @@ class FactRetriever:
             scored.append(fact)
 
         scored.sort(key=lambda x: x["score"], reverse=True)
-        return scored[:limit]
+        return self.store.attach_provenance(scored[:limit])
 
     def _fts_ranking(
         self,

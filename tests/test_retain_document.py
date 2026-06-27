@@ -344,6 +344,56 @@ class TestRetainDocument:
             store.close()
             Path(db_path).unlink(missing_ok=True)
 
+    def test_list_and_search_return_derived_provenance_status(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            store._conn.execute(
+                "INSERT INTO documents (doc_id, raw_text, text_hash, source) VALUES (1, 'doc', ?, 'doc')",
+                ("a" * 64,),
+            )
+            store._conn.commit()
+
+            known_id = store.add_fact(
+                "Visible provenance fact",
+                source_doc_id=1,
+                source_fact_id=7,
+            )
+            legacy_id = store.add_fact("Legacy unknown provenance fact")
+
+            by_id = {fact["fact_id"]: fact for fact in store.list_facts(limit=10)}
+            assert by_id[known_id]["provenance"] == {
+                "status": "known",
+                "sources": [
+                    {
+                        "doc_id": 1,
+                        "source": "doc",
+                        "source_fact_id": 7,
+                        "relation": "origin",
+                    }
+                ],
+            }
+            assert by_id[legacy_id]["provenance"] == {
+                "status": "legacy_unknown",
+                "sources": [],
+            }
+            assert (
+                store._conn.execute(
+                    "SELECT COUNT(*) FROM fact_provenance WHERE fact_id = ?",
+                    (legacy_id,),
+                ).fetchone()[0]
+                == 0
+            )
+
+            search_results = store.search_facts("Visible provenance", min_trust=0.0)
+            assert search_results[0]["fact_id"] == known_id
+            assert search_results[0]["provenance"]["status"] == "known"
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
     def test_add_fact_warns_when_hrr_capacity_exceeded(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:

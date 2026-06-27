@@ -481,6 +481,54 @@ class MemoryStore:
             (old_fact_id,),
         )
 
+    def _provenance_map(self, fact_ids: list[int] | set[int]) -> dict[int, dict]:
+        """Return read-time provenance summaries for fact IDs.
+
+        ``legacy_unknown`` is derived from the absence of rows. It must not be
+        stored as a marker column or placeholder row.
+        """
+        ids = list(dict.fromkeys(fact_ids))
+        summaries = {
+            fact_id: {"status": "legacy_unknown", "sources": []}
+            for fact_id in ids
+        }
+        if not ids:
+            return summaries
+
+        placeholders = ",".join("?" * len(ids))
+        rows = self._conn.execute(
+            f"""
+            SELECT p.fact_id, p.doc_id, d.source, p.source_fact_id, p.relation
+            FROM fact_provenance p
+            JOIN documents d ON d.doc_id = p.doc_id
+            WHERE p.fact_id IN ({placeholders})
+            ORDER BY p.fact_id, p.doc_id, p.source_fact_id
+            """,
+            ids,
+        ).fetchall()
+        for row in rows:
+            fact_id = int(row["fact_id"])
+            summary = summaries.setdefault(
+                fact_id, {"status": "legacy_unknown", "sources": []}
+            )
+            summary["status"] = "known"
+            summary["sources"].append(
+                {
+                    "doc_id": row["doc_id"],
+                    "source": row["source"],
+                    "source_fact_id": row["source_fact_id"],
+                    "relation": row["relation"],
+                }
+            )
+        return summaries
+
+    def attach_provenance(self, facts: list[dict]) -> list[dict]:
+        """Attach read-time provenance summaries to fact dicts."""
+        provenance = self._provenance_map({fact["fact_id"] for fact in facts})
+        for fact in facts:
+            fact["provenance"] = provenance[fact["fact_id"]]
+        return facts
+
     def _find_consolidation_candidates(
         self,
         category: str | None = None,
@@ -870,7 +918,7 @@ class MemoryStore:
             """
 
             rows = self._conn.execute(sql, params).fetchall()
-            results = [self._row_to_dict(r) for r in rows]
+            results = self.attach_provenance([self._row_to_dict(r) for r in rows])
 
             if results:
                 ids = [r["fact_id"] for r in results]
@@ -1009,7 +1057,7 @@ class MemoryStore:
                 LIMIT ?
             """
             rows = self._conn.execute(sql, params).fetchall()
-            return [self._row_to_dict(r) for r in rows]
+            return self.attach_provenance([self._row_to_dict(r) for r in rows])
 
     def record_feedback(self, fact_id: int, helpful: bool) -> dict:
         """Record user feedback and adjust trust asymmetrically.

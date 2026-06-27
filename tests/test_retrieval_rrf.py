@@ -115,6 +115,34 @@ class TestRRFSearch:
         assert after["retrieval_count"] == 1
         assert datetime.fromisoformat(after["last_accessed_at"]) is not None
 
+    def test_search_results_include_provenance_summary(
+        self, retriever: FactRetriever
+    ) -> None:
+        retriever.store._conn.execute(
+            "INSERT INTO documents (doc_id, raw_text, text_hash, source) VALUES (1, 'doc', ?, 'doc')",
+            ("a" * 64,),
+        )
+        retriever.store._conn.commit()
+        fact_id = retriever.store.add_fact(
+            "Python provenance is visible",
+            source_doc_id=1,
+            source_fact_id=3,
+        )
+
+        results = retriever.search("Python provenance", min_trust=0.0, limit=5)
+        result = next(r for r in results if r["fact_id"] == fact_id)
+        assert result["provenance"] == {
+            "status": "known",
+            "sources": [
+                {
+                    "doc_id": 1,
+                    "source": "doc",
+                    "source_fact_id": 3,
+                    "relation": "origin",
+                }
+            ],
+        }
+
     def test_recency_boost_is_derived_live_from_last_accessed_at(
         self, retriever: FactRetriever
     ) -> None:
