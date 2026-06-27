@@ -15,6 +15,7 @@
   - Windows Python: `import holographic` 通过。
   - Windows pytest: `117 passed in 12.35s`（v10 前一次完整基线）。
   - v10 targeted tests: `34 passed in 5.31s`（`tests/test_migrations.py` + `tests/test_retain_document.py`）。
+  - provenance visibility targeted tests: `48 passed in 4.31s`（`tests/test_retain_document.py` + `tests/test_retrieval_rrf.py` + `tests/test_consolidation.py`）。
   - WSL 环境没有 `python`/`pytest` 命令；该项目当前以 Windows Python 作为有效验证入口。
 - **稳定快照 ledger（2026-06-24 15:03:36）**：
   - `facts_total=3181`，`facts_active=1034`，`facts_soft_deleted=2147`，`documents_total=9`，schema v10 代码已落地；生产快照读取时仍需按迁移前/后具体状态注明。
@@ -41,11 +42,12 @@
 - [x] 对齐 `SESSION.md` / `ROADMAP.md` / `TECH_DEBT.md` 的当前状态口径。
 - [x] 将旧 `SESSION.md` 状态块归档到 `docs/achieve/session_2026-06-24_legacy_status.md`，避免信息只存在于 git 历史里。
 - [x] 落地 migration v10 `fact_provenance`：新 document retain / merge 记录来源账本，旧库不写占位，legacy unknown 由查询侧读时派生。
+- [x] 补齐 provenance 可见化：`list_facts` / `search_facts` / RRF retrieval 输出 `provenance` 摘要；无行时读时返回 `legacy_unknown`，不写占位。
 
 ## 下一步顺序
 
-1. **补齐 Source Provenance 查询/报告面**：代码层 v10 已记录新来源账本；下一步需要让查询/报告优先读取 `fact_provenance`，无行时显式返回 `legacy_unknown`，并避免继续把 `source_doc_id` 误当完整 provenance。
-2. **整库干净度人工确认**：对最新快照中识别出的 6 条 meta candidates 以及 dirty 候选事实进行人工清洗和标记处理。
+1. **整库干净度人工确认**：对最新快照中识别出的 6 条 meta candidates 以及 dirty 候选事实进行人工清洗和标记处理。
+2. **Source Provenance 报告面细化**：工具输出已经带 `provenance` 摘要；如需审计报告/只读脚本输出更完整来源分布，再补报告层，不再改 schema。
 3. **解 HRR 饱和方案解耦实施**：
    - 探讨轻量化、非侵入性、可逆的 HRR bank 物理切分方案（如直接按 `source_doc_id` 切分并聚合 memory bank，或使用粗分类打标），以缓解 `project` bank 的容量压力，彻底与 `facts.scope` 解耦。
 4. **Scope 状态：veto / 待证（与 P2 同构，不可逆闸）**：

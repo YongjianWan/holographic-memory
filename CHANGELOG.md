@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `(fact_id, doc_id, source_fact_id)` uniqueness. New document retains record
   origin/merge provenance; legacy facts are not backfilled because historical
   merge direction was flattened by the `999999` soft-delete marker.
+- Fact retrieval/list outputs now include a read-time `provenance` summary.
+  Facts with no provenance rows return derived `legacy_unknown` without
+  writing placeholder rows.
 - Migration v8: add `facts.last_accessed_at`, separating factual recall time from content updates and feedback trust.
 - Successful `search` / `probe` / `related` / `reason` retrievals now increment `retrieval_count` and refresh `last_accessed_at`.
 - Cross-process write serialization for `add_fact` using `BEGIN IMMEDIATE`; concurrent near-duplicate writes are now checked and inserted atomically.
