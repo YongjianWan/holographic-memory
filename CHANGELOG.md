@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`tests/scripts/run_dirty_fact_candidates.py`) that snapshots the live DB,
   scans active facts read-only, and writes manual-review JSON/Markdown reports
   without mutating facts, schema, or provenance.
+- Dirty verdict apply script (`tests/scripts/run_apply_dirty_fact_verdicts.py`)
+  for backup-first soft deletion of confirmed dirty facts via
+  `merged_into=999999`, with dry-run reports and category bank rebuilds.
 - Local post-parse guardrails for LLM extraction output, rejecting common leaks
   such as dialogue state, sleep reminders, ammunition metaphors, memory slot
   chatter, motive inferences, and extractor self-talk before facts reach

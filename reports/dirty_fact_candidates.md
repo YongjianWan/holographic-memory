@@ -7,22 +7,20 @@
 - `likely_dirty` means the row matched current extractor guardrails or historical meta-leak patterns.
 - `review` means the row is worth a human look, not that it should be removed.
 - Source DB: `C:\Users\sdses\AppData\Local\hermes\memory_store.db`
-- Snapshot DB: `reports\snapshots\memory_store_dirty_audit_20260627_182553.db`
+- Snapshot DB: `reports\snapshots\memory_store_dirty_audit_20260627_184643.db`
 
 ## Summary
 
-- generated_at: 2026-06-27T18:25:53
-- active_facts_scanned: 2200
-- candidate_count: 50
+- generated_at: 2026-06-27T18:46:43
+- active_facts_scanned: 2199
+- candidate_count: 49
 - review_length: 240
-- likely_dirty: 1
 - review: 49
 
 ## Candidates
 
 | fact_id | verdict | disposition | doc | length | reasons | content |
 |---:|---|---|---:|---:|---|---|
-| 1000145 |  | likely_dirty | 9 | 32 | current_extractor_guard | Claude指出用户有一聊到投简历就转头做或聊新东西的逃避模式。 |
 | 19 |  | review | None | 406 | long_atomicity_check:>240 | Commit review cron job: daily at 9 AM, skill=github-code-review, script=collect_commits.py, deliver=local. Background review prompt updated on 2026-06-02: _SKILL_REVIEW_PROMPT and _COMBINED_REVIEW_PROMPT added HARD RULE - must check skills_list() before creating new skill, patch instead of create when possible. "Be ACTIVE" retained. Frequency creation_nudge_interval=15. File: agent/background_review.py. |
 | 2 |  | review | None | 339 | long_atomicity_check:>240 | Policy evaluation platform (aizsgzt-admin) uses five-layer architecture: user entry, business process, Agent application, self-developed Agent Factory core, underlying capability & data resource. Agent application layer includes pre-evaluation Agent, review assistant Agent, report Q&A Agent (implemented), post-evaluation Agent (planned). |
 | 23 |  | review | None | 338 | long_atomicity_check:>240 | Hindsight memory export completed on 2026-06-15. 5189 total memory units in PostgreSQL (1312 world, 2422 experience, 1455 observation). 329 valuable world facts filtered and exported to ~/AppData/Local/hermes/hindsight_export.json. Key topics: aizsgzt platform architecture, skill curation decisions, user preferences, API configurations. |

@@ -1,0 +1,46 @@
+{
+  "generated_at": "2026-06-27T18:46:31",
+  "dry_run": false,
+  "db": "C:\\Users\\sdses\\AppData\\Local\\hermes\\memory_store.db",
+  "candidate_report": "reports\\dirty_fact_candidates.json",
+  "backup": "reports\\live_backups\\memory_store_before_dirty_apply_20260627_184630.db",
+  "selected_fact_ids": [
+    1000145
+  ],
+  "before": {
+    "facts_total": 4347,
+    "facts_active": 2200,
+    "facts_soft_deleted": 2147,
+    "selected": [
+      {
+        "fact_id": 1000145,
+        "content": "Claude指出用户有一聊到投简历就转头做或聊新东西的逃避模式。",
+        "category": "personal",
+        "source_doc_id": 9,
+        "merged_into": null
+      }
+    ],
+    "sentinel_exists": true
+  },
+  "after": {
+    "facts_total": 4347,
+    "facts_active": 2199,
+    "facts_soft_deleted": 2148,
+    "selected": [
+      {
+        "fact_id": 1000145,
+        "content": "Claude指出用户有一聊到投简历就转头做或聊新东西的逃避模式。",
+        "category": "personal",
+        "source_doc_id": 9,
+        "merged_into": 999999
+      }
+    ],
+    "sentinel_exists": true
+  },
+  "apply_result": {
+    "updated": 1,
+    "categories": [
+      "personal"
+    ]
+  }
+}

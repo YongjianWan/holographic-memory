@@ -17,25 +17,28 @@
   - v10 targeted tests: `34 passed in 5.31s`（`tests/test_migrations.py` + `tests/test_retain_document.py`）。
   - provenance visibility targeted tests: `48 passed in 4.31s`（`tests/test_retain_document.py` + `tests/test_retrieval_rrf.py` + `tests/test_consolidation.py`）。
   - WSL 环境没有 `python`/`pytest` 命令；该项目当前以 Windows Python 作为有效验证入口。
-- **稳定快照 ledger（2026-06-27 18:05:30）**：
+- **稳定快照 ledger（2026-06-27 18:46:42）**：
   - 项目 canonical docs 已导入 live DB：11 个文档，新增 active facts 1166，新增 documents 11。
   - 写入前备份：`reports/live_backups/memory_store_before_project_docs_20260627_175648.db`。
-  - `facts_total=4347`，`facts_active=2200`，`facts_soft_deleted=2147`，`documents_total=20`，schema v10。
+  - dirty soft-delete 写入前备份：`reports/live_backups/memory_store_before_dirty_apply_20260627_184630.db`。
+  - `facts_total=4347`，`facts_active=2199`，`facts_soft_deleted=2148`，`documents_total=20`，schema v10。
   - `integrity_check=ok`，foreign key violations 为 0。
-  - **Active 数量对平对账单（1051 -> 1034 -> 2200）**：
+  - **Active 数量对平对账单（1051 -> 1034 -> 2200 -> 2199）**：
     - `1034 = 1051 + 6 (Doc 6) - 22 (Doc 8) - 1 (Doc None)`
     - `2200 = 1034 + 1166 (project canonical docs)`
+    - `2199 = 2200 - 1 (dirty Fact 1000145 soft-delete)`
     - **Doc 6 (招商会议.txt) 净增加 6**：新增 248 条，软删除（合并）243 条，复活 1 条（248 - 243 + 1 = +6）
     - **Doc 8 (招商2.txt) 净减少 22**：新增 192 条，软删除（合并）223 条，复活 9 条（192 - 223 + 9 = -22）
     - **Doc None (系统内置/无源事实) 净减少 1**：软删除 1 条，新增 0 条（-1）
-  - active category：project 2083，personal 111，user_pref 5，general 1。
-  - 所有 2147 条 soft-deleted facts 当前都指向 `999999 System audit soft-delete marker`，说明当前库已被清理/重抽样改写，不能沿用旧的 2078 active 口径。
+  - active category：project 2083，personal 110，user_pref 5，general 1。
+  - 所有 2148 条 soft-deleted facts 当前都指向 `999999 System audit soft-delete marker`，说明当前库已被清理/重抽样改写，不能沿用旧的 2078 active 口径。
   - `project` bank 当前 fact_count 2083，按 1024 维估算 SNR 约 0.701，HRR 饱和已是明确下一刀证据。
-- **整库 dirty/meta 候选报告（2026-06-27 18:25:53）**：
+- **整库 dirty/meta 候选报告（2026-06-27 18:46:43）**：
   - 只读脚本：`tests/scripts/run_dirty_fact_candidates.py`。
   - 输出：`reports/dirty_fact_candidates.md` / `.json`；源库经 SQLite backup API 快照后读取，未修改 live DB。
-  - 扫描 active facts 2200 条，候选 50 条：`likely_dirty=1`，`review=49`。
-  - `likely_dirty` 当前只剩 Fact `1000145`（心理动机/逃避模式推断）；其余 49 条主要是长事实、历史瞬时状态或 schema/retrieval_count 口径，需要人眼判定，不自动清理。
+  - 已通过 `tests/scripts/run_apply_dirty_fact_verdicts.py --apply-likely-dirty --yes` 软删除 Fact `1000145`（心理动机/逃避模式推断），写入 `merged_into=999999`，未物理 DELETE。
+  - apply 记录：`reports/dirty_fact_apply_20260627_184631.md` / `.json`。
+  - 写后扫描 active facts 2199 条，候选 49 条，全部为 `review`；当前无 `likely_dirty`。
 
 ## 进行中
 
@@ -53,10 +56,11 @@
 - [x] 补齐 provenance 可见化：`list_facts` / `search_facts` / RRF retrieval 输出 `provenance` 摘要；无行时读时返回 `legacy_unknown`，不写占位。
 - [x] 导入项目 canonical docs：`tests/scripts/run_retain_project_docs.py --yes` 成功写入 live DB；11 个文档全部 `ok`，无 extraction errors。
 - [x] 生成整库 dirty/meta 候选人工确认报告；当前只读口径为 50 条候选（1 条 likely_dirty / 49 条 review）。
+- [x] 软删除唯一明确 dirty fact `1000145`；写后只读口径为 49 条 review 候选，无 likely_dirty。
 
 ## 下一步顺序
 
-1. **整库干净度人工确认**：基于 `reports/dirty_fact_candidates.md` 对 50 条候选填 verdict；确认后通过 `merged_into` 软删除/标记处理，禁止物理 DELETE。
+1. **整库干净度人工确认**：基于 `reports/dirty_fact_candidates.md` 对剩余 49 条 review 候选填 verdict；确认后通过 `merged_into` 软删除/标记处理，禁止物理 DELETE。
 2. **Source Provenance 报告面细化**：工具输出已经带 `provenance` 摘要；如需审计报告/只读脚本输出更完整来源分布，再补报告层，不再改 schema。
 3. **解 HRR 饱和方案解耦实施**：
    - 探讨轻量化、非侵入性、可逆的 HRR bank 物理切分方案（如直接按 `source_doc_id` 切分并聚合 memory bank，或使用粗分类打标），以缓解 `project` bank 的容量压力，彻底与 `facts.scope` 解耦。

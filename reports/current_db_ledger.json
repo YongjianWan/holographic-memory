@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-06-27T18:05:30",
+  "generated_at": "2026-06-27T18:46:42",
   "source_db": "C:\\Users\\sdses\\AppData\\Local\\hermes\\memory_store.db",
-  "snapshot_db": "reports\\snapshots\\memory_store_snapshot_20260627_180530.db",
+  "snapshot_db": "reports\\snapshots\\memory_store_snapshot_20260627_184641.db",
   "schema_version": 10,
   "integrity_check": "ok",
   "foreign_key_violations": [],
   "facts_total": 4347,
-  "facts_active": 2200,
-  "facts_soft_deleted": 2147,
+  "facts_active": 2199,
+  "facts_soft_deleted": 2148,
   "documents_total": 20,
   "active_by_category": [
     {
@@ -16,7 +16,7 @@
     },
     {
       "category": "personal",
-      "active_facts": 111
+      "active_facts": 110
     },
     {
       "category": "user_pref",
@@ -62,7 +62,7 @@
     },
     {
       "source_doc_id": 9,
-      "active_facts": 113
+      "active_facts": 112
     },
     {
       "source_doc_id": 15,
@@ -128,7 +128,7 @@
     },
     {
       "source_doc_id": 9,
-      "soft_deleted_facts": 696
+      "soft_deleted_facts": 697
     }
   ],
   "documents": [
@@ -191,8 +191,8 @@
     {
       "doc_id": 9,
       "source": "C:\\Users\\sdses\\Desktop\\工作心理问题.txt",
-      "active_facts": 113,
-      "soft_deleted_facts": 696,
+      "active_facts": 112,
+      "soft_deleted_facts": 697,
       "created_at": "2026-06-23 01:47:16"
     },
     {
@@ -274,7 +274,7 @@
     }
   ],
   "merge_targets": 1,
-  "merge_events": 2147,
+  "merge_events": 2148,
   "source_lost_candidates": 0,
   "meta_candidates": [
     {
@@ -886,8 +886,8 @@
     },
     {
       "bank_name": "cat:personal",
-      "fact_count": 113,
-      "snr_estimate_1024": 3.01
+      "fact_count": 110,
+      "snr_estimate_1024": 3.051
     },
     {
       "bank_name": "cat:project",

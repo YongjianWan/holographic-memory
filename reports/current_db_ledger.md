@@ -5,11 +5,11 @@
 - Source database was copied with SQLite backup API.
 - Counts below come from the copied snapshot, not from the live WAL database.
 - Source DB: `C:\Users\sdses\AppData\Local\hermes\memory_store.db`
-- Snapshot DB: `reports\snapshots\memory_store_snapshot_20260627_180530.db`
+- Snapshot DB: `reports\snapshots\memory_store_snapshot_20260627_184641.db`
 
 ## Integrity
 
-- generated_at: 2026-06-27T18:05:30
+- generated_at: 2026-06-27T18:46:42
 - schema_version: 10
 - integrity_check: ok
 - foreign_key_violations: 0
@@ -17,11 +17,11 @@
 ## Fact Counts
 
 - facts_total: 4347
-- facts_active: 2200
-- facts_soft_deleted: 2147
+- facts_active: 2199
+- facts_soft_deleted: 2148
 - documents_total: 20
 - merge_targets: 1
-- merge_events: 2147
+- merge_events: 2148
 - cross-source merge candidates: 0
 
 ## Active Facts By Category
@@ -29,7 +29,7 @@
 | category | active_facts |
 |---|---:|
 | project | 2083 |
-| personal | 111 |
+| personal | 110 |
 | user_pref | 5 |
 | general | 1 |
 
@@ -45,7 +45,7 @@
 | 6 | 264 | 772 | C:\Users\sdses\Desktop\招商会议.txt |
 | 7 | 14 | 0 | C:\Users\sdses\Desktop\土地数据.txt |
 | 8 | 218 | 620 | C:\Users\sdses\Desktop\招商2.txt |
-| 9 | 113 | 696 | C:\Users\sdses\Desktop\工作心理问题.txt |
+| 9 | 112 | 697 | C:\Users\sdses\Desktop\工作心理问题.txt |
 | 15 | 130 | 0 | AGENTS.md |
 | 16 | 117 | 0 | CHANGELOG.md |
 | 17 | 77 | 0 | ROADMAP.md |
@@ -63,7 +63,7 @@
 | bank_name | fact_count | snr |
 |---|---:|---:|
 | cat:general | 1 | 32.0 |
-| cat:personal | 113 | 3.01 |
+| cat:personal | 110 | 3.051 |
 | cat:project | 2083 | 0.701 |
 | cat:user_pref | 6 | 13.064 |
 
