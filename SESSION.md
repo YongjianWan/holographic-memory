@@ -43,14 +43,16 @@
 - [x] 将旧 `SESSION.md` 状态块归档到 `docs/achieve/session_2026-06-24_legacy_status.md`，避免信息只存在于 git 历史里。
 - [x] 落地 migration v10 `fact_provenance`：新 document retain / merge 记录来源账本，旧库不写占位，legacy unknown 由查询侧读时派生。
 - [x] 补齐 provenance 可见化：`list_facts` / `search_facts` / RRF retrieval 输出 `provenance` 摘要；无行时读时返回 `legacy_unknown`，不写占位。
+- [x] 增加项目文档 retain 脚本：`tests/scripts/run_retain_project_docs.py --dry-run` 已确认 11 个 canonical docs；当前 shell 无 LLM API key，尚未写入 live DB。
 
 ## 下一步顺序
 
-1. **整库干净度人工确认**：对最新快照中识别出的 6 条 meta candidates 以及 dirty 候选事实进行人工清洗和标记处理。
-2. **Source Provenance 报告面细化**：工具输出已经带 `provenance` 摘要；如需审计报告/只读脚本输出更完整来源分布，再补报告层，不再改 schema。
-3. **解 HRR 饱和方案解耦实施**：
+1. **导入项目 canonical docs（有 LLM key 的 shell 中执行）**：运行 `tests/scripts/run_retain_project_docs.py --yes`，脚本会先备份 live DB；禁止 fallback 导入。
+2. **整库干净度人工确认**：对最新快照中识别出的 6 条 meta candidates 以及 dirty 候选事实进行人工清洗和标记处理。
+3. **Source Provenance 报告面细化**：工具输出已经带 `provenance` 摘要；如需审计报告/只读脚本输出更完整来源分布，再补报告层，不再改 schema。
+4. **解 HRR 饱和方案解耦实施**：
    - 探讨轻量化、非侵入性、可逆的 HRR bank 物理切分方案（如直接按 `source_doc_id` 切分并聚合 memory bank，或使用粗分类打标），以缓解 `project` bank 的容量压力，彻底与 `facts.scope` 解耦。
-4. **Scope 状态：veto / 待证（与 P2 同构，不可逆闸）**：
+5. **Scope 状态：veto / 待证（与 P2 同构，不可逆闸）**：
    - 彻底冻结 Scope 拆分的开发决策。
    - **解冻条件**：在真实使用中撞到“必须依靠域过滤才能答得了”的真实查询（需求驱动），而非“数据攒够”或“分类标签重构”等伪数据驱动。在此之前，不编写任何 Scope 相关的 schema 迁移或处理代码。
 

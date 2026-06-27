@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   auditing. The generated report records current fact counts, document
   distribution, soft-delete counts, memory bank pressure, and candidate dirty
   facts without mutating the source DB.
+- Project-document retain script (`tests/scripts/run_retain_project_docs.py`)
+  for importing the repository's canonical docs into the live memory store.
+  It supports dry-run listing, requires an LLM API key for writes, and creates
+  a SQLite backup before mutating the live DB.
 - Local post-parse guardrails for LLM extraction output, rejecting common leaks
   such as dialogue state, sleep reminders, ammunition metaphors, memory slot
   chatter, motive inferences, and extractor self-talk before facts reach
