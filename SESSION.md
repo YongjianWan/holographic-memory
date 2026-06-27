@@ -39,6 +39,13 @@
   - 已通过 `tests/scripts/run_apply_dirty_fact_verdicts.py --apply-likely-dirty --yes` 软删除 Fact `1000145`（心理动机/逃避模式推断），写入 `merged_into=999999`，未物理 DELETE。
   - apply 记录：`reports/dirty_fact_apply_20260627_184631.md` / `.json`。
   - 写后扫描 active facts 2199 条，候选 49 条，全部为 `review`；当前无 `likely_dirty`。
+- **HRR bank 解耦只读审计（2026-06-27 19:01:26）**：
+  - 只读脚本：`tests/scripts/run_hrr_bank_partition_audit.py`。
+  - 输出：`reports/hrr_bank_partition_audit.md` / `.json`；源库经 SQLite backup API 快照后读取，未修改 live DB。
+  - 当前 `category` bank：`cat:project` 2083 facts，SNR 0.701，明确超载。
+  - `category_source_doc`：23 个虚拟 bank，最大 `cat:project|doc:6` 为 264 facts，SNR 1.969，仍略超 256。
+  - `category_document_family`：最大 895 facts，SNR 1.07，不足以解饱和。
+  - `category_source_doc_shard256`：24 个虚拟 bank，最大 256 facts，SNR 2.0，`over_capacity=0`；这是当前证据支持的下一步实现候选，且不引入 scope schema。
 
 ## 进行中
 
@@ -57,13 +64,15 @@
 - [x] 导入项目 canonical docs：`tests/scripts/run_retain_project_docs.py --yes` 成功写入 live DB；11 个文档全部 `ok`，无 extraction errors。
 - [x] 生成整库 dirty/meta 候选人工确认报告；当前只读口径为 50 条候选（1 条 likely_dirty / 49 条 review）。
 - [x] 软删除唯一明确 dirty fact `1000145`；写后只读口径为 49 条 review 候选，无 likely_dirty。
+- [x] 完成 HRR bank 解耦只读审计；`source_doc_id + shard256` 可把最大 bank 从 2083 压到 256，清掉容量超载。
 
 ## 下一步顺序
 
 1. **整库干净度人工确认**：基于 `reports/dirty_fact_candidates.md` 对剩余 49 条 review 候选填 verdict；确认后通过 `merged_into` 软删除/标记处理，禁止物理 DELETE。
-2. **Source Provenance 报告面细化**：工具输出已经带 `provenance` 摘要；如需审计报告/只读脚本输出更完整来源分布，再补报告层，不再改 schema。
-3. **解 HRR 饱和方案解耦实施**：
-   - 探讨轻量化、非侵入性、可逆的 HRR bank 物理切分方案（如直接按 `source_doc_id` 切分并聚合 memory bank，或使用粗分类打标），以缓解 `project` bank 的容量压力，彻底与 `facts.scope` 解耦。
+2. **解 HRR 饱和方案解耦实施**：
+   - 基于 `reports/hrr_bank_partition_audit.md` 实现 `category_source_doc_shard256` 派生/运行时 bank 方案：按 category + source_doc_id + fact_id 顺序 shard，目标是不改 scope schema、不写 `facts.scope`、不引入 embedding。
+   - 实现前先明确 retrieval 端如何选 bank：query 若限定/命中文档来源可用 doc bank，否则仍以 FTS/Jaccard 候选为主，HRR 只作弱信号或 probe/reason 辅助。
+3. **Source Provenance 报告面细化**：工具输出已经带 `provenance` 摘要；如需审计报告/只读脚本输出更完整来源分布，再补报告层，不再改 schema。
 4. **Scope 状态：veto / 待证（与 P2 同构，不可逆闸）**：
    - 彻底冻结 Scope 拆分的开发决策。
    - **解冻条件**：在真实使用中撞到“必须依靠域过滤才能答得了”的真实查询（需求驱动），而非“数据攒够”或“分类标签重构”等伪数据驱动。在此之前，不编写任何 Scope 相关的 schema 迁移或处理代码。

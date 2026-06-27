@@ -1,0 +1,586 @@
+{
+  "generated_at": "2026-06-27T19:01:26",
+  "source_db": "C:\\Users\\sdses\\AppData\\Local\\hermes\\memory_store.db",
+  "snapshot_db": "reports\\snapshots\\memory_store_hrr_bank_audit_20260627_190126.db",
+  "read_only": true,
+  "hrr_dim": 1024,
+  "capacity_items": 256,
+  "active_facts_scanned": 2199,
+  "active_by_category": {
+    "project": 2083,
+    "personal": 110,
+    "user_pref": 5,
+    "general": 1
+  },
+  "schemes": [
+    {
+      "scheme": "category",
+      "bank_count": 4,
+      "max_fact_count": 2083,
+      "max_snr": 0.701,
+      "banks_over_capacity": 1,
+      "banks_with_snr_below_2": 1,
+      "missing_hrr_vectors": 0,
+      "top_banks": [
+        {
+          "bank_name": "cat:project",
+          "fact_count": 2083,
+          "snr": 0.701,
+          "over_capacity": true,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": null,
+          "source": null
+        },
+        {
+          "bank_name": "cat:personal",
+          "fact_count": 110,
+          "snr": 3.051,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "personal",
+          "source_doc_id": 9,
+          "source": "C:\\Users\\sdses\\Desktop\\工作心理问题.txt"
+        },
+        {
+          "bank_name": "cat:user_pref",
+          "fact_count": 5,
+          "snr": 14.311,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "user_pref",
+          "source_doc_id": null,
+          "source": null
+        },
+        {
+          "bank_name": "cat:general",
+          "fact_count": 1,
+          "snr": 32.0,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "general",
+          "source_doc_id": null,
+          "source": null
+        }
+      ]
+    },
+    {
+      "scheme": "category_source_doc",
+      "bank_count": 23,
+      "max_fact_count": 264,
+      "max_snr": 1.969,
+      "banks_over_capacity": 1,
+      "banks_with_snr_below_2": 1,
+      "missing_hrr_vectors": 0,
+      "top_banks": [
+        {
+          "bank_name": "cat:project|doc:6",
+          "fact_count": 264,
+          "snr": 1.969,
+          "over_capacity": true,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 6,
+          "source": "C:\\Users\\sdses\\Desktop\\招商会议.txt"
+        },
+        {
+          "bank_name": "cat:project|doc:21",
+          "fact_count": 247,
+          "snr": 2.036,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 21,
+          "source": "docs\\achieve\\holo-改造方案.md"
+        },
+        {
+          "bank_name": "cat:project|doc:1",
+          "fact_count": 227,
+          "snr": 2.124,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 1,
+          "source": "C:\\Users\\sdses\\Desktop\\现状（部分）.txt"
+        },
+        {
+          "bank_name": "cat:project|doc:8",
+          "fact_count": 218,
+          "snr": 2.167,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 8,
+          "source": "C:\\Users\\sdses\\Desktop\\招商2.txt"
+        },
+        {
+          "bank_name": "cat:project|doc:25",
+          "fact_count": 208,
+          "snr": 2.219,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 25,
+          "source": "docs\\宪法.md"
+        },
+        {
+          "bank_name": "cat:project|doc:15",
+          "fact_count": 130,
+          "snr": 2.807,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 15,
+          "source": "AGENTS.md"
+        },
+        {
+          "bank_name": "cat:project|doc:16",
+          "fact_count": 117,
+          "snr": 2.958,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 16,
+          "source": "CHANGELOG.md"
+        },
+        {
+          "bank_name": "cat:personal|doc:9",
+          "fact_count": 110,
+          "snr": 3.051,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "personal",
+          "source_doc_id": 9,
+          "source": "C:\\Users\\sdses\\Desktop\\工作心理问题.txt"
+        },
+        {
+          "bank_name": "cat:project|doc:18",
+          "fact_count": 98,
+          "snr": 3.232,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 18,
+          "source": "SESSION.md"
+        },
+        {
+          "bank_name": "cat:project|doc:22",
+          "fact_count": 94,
+          "snr": 3.301,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 22,
+          "source": "docs\\achieve\\session_2026-06-24_legacy_status.md"
+        },
+        {
+          "bank_name": "cat:project|doc:17",
+          "fact_count": 77,
+          "snr": 3.647,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 17,
+          "source": "ROADMAP.md"
+        },
+        {
+          "bank_name": "cat:project|doc:4",
+          "fact_count": 77,
+          "snr": 3.647,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 4,
+          "source": "C:\\Users\\sdses\\Desktop\\AI智能检索与公文写作系统_需求文档.md"
+        },
+        {
+          "bank_name": "cat:project|doc:20",
+          "fact_count": 70,
+          "snr": 3.825,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 20,
+          "source": "docs\\achieve\\CODE_SUMMARY.md"
+        },
+        {
+          "bank_name": "cat:project|doc:19",
+          "fact_count": 66,
+          "snr": 3.939,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 19,
+          "source": "TECH_DEBT.md"
+        },
+        {
+          "bank_name": "cat:project|doc:3",
+          "fact_count": 47,
+          "snr": 4.668,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 3,
+          "source": "C:\\Users\\sdses\\Desktop\\今日.md"
+        },
+        {
+          "bank_name": "cat:project|doc:5",
+          "fact_count": 46,
+          "snr": 4.718,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 5,
+          "source": "C:\\Users\\sdses\\Desktop\\ppt修改.txt"
+        },
+        {
+          "bank_name": "cat:project|doc:23",
+          "fact_count": 45,
+          "snr": 4.77,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 23,
+          "source": "docs\\achieve\\并发补丁_多agent共享库.md"
+        },
+        {
+          "bank_name": "cat:project|doc:none",
+          "fact_count": 22,
+          "snr": 6.822,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": null,
+          "source": null
+        },
+        {
+          "bank_name": "cat:project|doc:24",
+          "fact_count": 14,
+          "snr": 8.552,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 24,
+          "source": "docs\\README.md"
+        },
+        {
+          "bank_name": "cat:project|doc:7",
+          "fact_count": 14,
+          "snr": 8.552,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 7,
+          "source": "C:\\Users\\sdses\\Desktop\\土地数据.txt"
+        }
+      ]
+    },
+    {
+      "scheme": "category_document_family",
+      "bank_count": 8,
+      "max_fact_count": 895,
+      "max_snr": 1.07,
+      "banks_over_capacity": 3,
+      "banks_with_snr_below_2": 3,
+      "missing_hrr_vectors": 0,
+      "top_banks": [
+        {
+          "bank_name": "cat:project|family:desktop_import",
+          "fact_count": 895,
+          "snr": 1.07,
+          "over_capacity": true,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 1,
+          "source": "C:\\Users\\sdses\\Desktop\\现状（部分）.txt"
+        },
+        {
+          "bank_name": "cat:project|family:repo_root_doc",
+          "fact_count": 488,
+          "snr": 1.449,
+          "over_capacity": true,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 15,
+          "source": "AGENTS.md"
+        },
+        {
+          "bank_name": "cat:project|family:repo_docs_archive",
+          "fact_count": 456,
+          "snr": 1.499,
+          "over_capacity": true,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 20,
+          "source": "docs\\achieve\\CODE_SUMMARY.md"
+        },
+        {
+          "bank_name": "cat:project|family:repo_docs_current",
+          "fact_count": 222,
+          "snr": 2.148,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 24,
+          "source": "docs\\README.md"
+        },
+        {
+          "bank_name": "cat:personal|family:desktop_import",
+          "fact_count": 110,
+          "snr": 3.051,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "personal",
+          "source_doc_id": 9,
+          "source": "C:\\Users\\sdses\\Desktop\\工作心理问题.txt"
+        },
+        {
+          "bank_name": "cat:project|family:legacy_none",
+          "fact_count": 22,
+          "snr": 6.822,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": null,
+          "source": null
+        },
+        {
+          "bank_name": "cat:user_pref|family:legacy_none",
+          "fact_count": 5,
+          "snr": 14.311,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "user_pref",
+          "source_doc_id": null,
+          "source": null
+        },
+        {
+          "bank_name": "cat:general|family:legacy_none",
+          "fact_count": 1,
+          "snr": 32.0,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "general",
+          "source_doc_id": null,
+          "source": null
+        }
+      ]
+    },
+    {
+      "scheme": "category_source_doc_shard256",
+      "bank_count": 24,
+      "max_fact_count": 256,
+      "max_snr": 2.0,
+      "banks_over_capacity": 0,
+      "banks_with_snr_below_2": 0,
+      "missing_hrr_vectors": 0,
+      "top_banks": [
+        {
+          "bank_name": "cat:project|doc:6|shard:00",
+          "fact_count": 256,
+          "snr": 2.0,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 6,
+          "source": "C:\\Users\\sdses\\Desktop\\招商会议.txt"
+        },
+        {
+          "bank_name": "cat:project|doc:21|shard:00",
+          "fact_count": 247,
+          "snr": 2.036,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 21,
+          "source": "docs\\achieve\\holo-改造方案.md"
+        },
+        {
+          "bank_name": "cat:project|doc:1|shard:00",
+          "fact_count": 227,
+          "snr": 2.124,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 1,
+          "source": "C:\\Users\\sdses\\Desktop\\现状（部分）.txt"
+        },
+        {
+          "bank_name": "cat:project|doc:8|shard:00",
+          "fact_count": 218,
+          "snr": 2.167,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 8,
+          "source": "C:\\Users\\sdses\\Desktop\\招商2.txt"
+        },
+        {
+          "bank_name": "cat:project|doc:25|shard:00",
+          "fact_count": 208,
+          "snr": 2.219,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 25,
+          "source": "docs\\宪法.md"
+        },
+        {
+          "bank_name": "cat:project|doc:15|shard:00",
+          "fact_count": 130,
+          "snr": 2.807,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 15,
+          "source": "AGENTS.md"
+        },
+        {
+          "bank_name": "cat:project|doc:16|shard:00",
+          "fact_count": 117,
+          "snr": 2.958,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 16,
+          "source": "CHANGELOG.md"
+        },
+        {
+          "bank_name": "cat:personal|doc:9|shard:00",
+          "fact_count": 110,
+          "snr": 3.051,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "personal",
+          "source_doc_id": 9,
+          "source": "C:\\Users\\sdses\\Desktop\\工作心理问题.txt"
+        },
+        {
+          "bank_name": "cat:project|doc:18|shard:00",
+          "fact_count": 98,
+          "snr": 3.232,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 18,
+          "source": "SESSION.md"
+        },
+        {
+          "bank_name": "cat:project|doc:22|shard:00",
+          "fact_count": 94,
+          "snr": 3.301,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 22,
+          "source": "docs\\achieve\\session_2026-06-24_legacy_status.md"
+        },
+        {
+          "bank_name": "cat:project|doc:17|shard:00",
+          "fact_count": 77,
+          "snr": 3.647,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 17,
+          "source": "ROADMAP.md"
+        },
+        {
+          "bank_name": "cat:project|doc:4|shard:00",
+          "fact_count": 77,
+          "snr": 3.647,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 4,
+          "source": "C:\\Users\\sdses\\Desktop\\AI智能检索与公文写作系统_需求文档.md"
+        },
+        {
+          "bank_name": "cat:project|doc:20|shard:00",
+          "fact_count": 70,
+          "snr": 3.825,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 20,
+          "source": "docs\\achieve\\CODE_SUMMARY.md"
+        },
+        {
+          "bank_name": "cat:project|doc:19|shard:00",
+          "fact_count": 66,
+          "snr": 3.939,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 19,
+          "source": "TECH_DEBT.md"
+        },
+        {
+          "bank_name": "cat:project|doc:3|shard:00",
+          "fact_count": 47,
+          "snr": 4.668,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 3,
+          "source": "C:\\Users\\sdses\\Desktop\\今日.md"
+        },
+        {
+          "bank_name": "cat:project|doc:5|shard:00",
+          "fact_count": 46,
+          "snr": 4.718,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 5,
+          "source": "C:\\Users\\sdses\\Desktop\\ppt修改.txt"
+        },
+        {
+          "bank_name": "cat:project|doc:23|shard:00",
+          "fact_count": 45,
+          "snr": 4.77,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 23,
+          "source": "docs\\achieve\\并发补丁_多agent共享库.md"
+        },
+        {
+          "bank_name": "cat:project|doc:none|shard:00",
+          "fact_count": 22,
+          "snr": 6.822,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": null,
+          "source": null
+        },
+        {
+          "bank_name": "cat:project|doc:24|shard:00",
+          "fact_count": 14,
+          "snr": 8.552,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 24,
+          "source": "docs\\README.md"
+        },
+        {
+          "bank_name": "cat:project|doc:7|shard:00",
+          "fact_count": 14,
+          "snr": 8.552,
+          "over_capacity": false,
+          "missing_hrr_vectors": 0,
+          "category": "project",
+          "source_doc_id": 7,
+          "source": "C:\\Users\\sdses\\Desktop\\土地数据.txt"
+        }
+      ]
+    }
+  ],
+  "recommendation": {
+    "status": "viable_without_scope",
+    "preferred_scheme": "category_source_doc_shard256",
+    "reason": "all virtual banks are below HRR capacity without adding scope schema"
+  }
+}

@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dirty verdict apply script (`tests/scripts/run_apply_dirty_fact_verdicts.py`)
   for backup-first soft deletion of confirmed dirty facts via
   `merged_into=999999`, with dry-run reports and category bank rebuilds.
+- HRR bank partition audit (`tests/scripts/run_hrr_bank_partition_audit.py`)
+  that snapshots the live DB and compares category, source-doc, document-family,
+  and source-doc shard partitions without writing schema or memory banks.
 - Local post-parse guardrails for LLM extraction output, rejecting common leaks
   such as dialogue state, sleep reminders, ammunition metaphors, memory slot
   chatter, motive inferences, and extractor self-talk before facts reach
