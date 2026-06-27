@@ -17,17 +17,20 @@
   - v10 targeted tests: `34 passed in 5.31s`（`tests/test_migrations.py` + `tests/test_retain_document.py`）。
   - provenance visibility targeted tests: `48 passed in 4.31s`（`tests/test_retain_document.py` + `tests/test_retrieval_rrf.py` + `tests/test_consolidation.py`）。
   - WSL 环境没有 `python`/`pytest` 命令；该项目当前以 Windows Python 作为有效验证入口。
-- **稳定快照 ledger（2026-06-24 15:03:36）**：
-  - `facts_total=3181`，`facts_active=1034`，`facts_soft_deleted=2147`，`documents_total=9`，schema v10 代码已落地；生产快照读取时仍需按迁移前/后具体状态注明。
+- **稳定快照 ledger（2026-06-27 18:05:30）**：
+  - 项目 canonical docs 已导入 live DB：11 个文档，新增 active facts 1166，新增 documents 11。
+  - 写入前备份：`reports/live_backups/memory_store_before_project_docs_20260627_175648.db`。
+  - `facts_total=4347`，`facts_active=2200`，`facts_soft_deleted=2147`，`documents_total=20`，schema v10。
   - `integrity_check=ok`，foreign key violations 为 0。
-  - **Active 数量对平对账单（1051 -> 1034，净减少 17）**：
+  - **Active 数量对平对账单（1051 -> 1034 -> 2200）**：
     - `1034 = 1051 + 6 (Doc 6) - 22 (Doc 8) - 1 (Doc None)`
+    - `2200 = 1034 + 1166 (project canonical docs)`
     - **Doc 6 (招商会议.txt) 净增加 6**：新增 248 条，软删除（合并）243 条，复活 1 条（248 - 243 + 1 = +6）
     - **Doc 8 (招商2.txt) 净减少 22**：新增 192 条，软删除（合并）223 条，复活 9 条（192 - 223 + 9 = -22）
     - **Doc None (系统内置/无源事实) 净减少 1**：软删除 1 条，新增 0 条（-1）
-  - active category：project 917，personal 111，user_pref 5，general 1。
+  - active category：project 2083，personal 111，user_pref 5，general 1。
   - 所有 2147 条 soft-deleted facts 当前都指向 `999999 System audit soft-delete marker`，说明当前库已被清理/重抽样改写，不能沿用旧的 2078 active 口径。
-  - `project` bank 当前 fact_count 933，按 1024 维估算 SNR 约 1.048，仍低于 2.0。
+  - `project` bank 当前 fact_count 2083，按 1024 维估算 SNR 约 0.701，HRR 饱和已是明确下一刀证据。
 
 ## 进行中
 
@@ -43,22 +46,21 @@
 - [x] 将旧 `SESSION.md` 状态块归档到 `docs/achieve/session_2026-06-24_legacy_status.md`，避免信息只存在于 git 历史里。
 - [x] 落地 migration v10 `fact_provenance`：新 document retain / merge 记录来源账本，旧库不写占位，legacy unknown 由查询侧读时派生。
 - [x] 补齐 provenance 可见化：`list_facts` / `search_facts` / RRF retrieval 输出 `provenance` 摘要；无行时读时返回 `legacy_unknown`，不写占位。
-- [x] 增加项目文档 retain 脚本：`tests/scripts/run_retain_project_docs.py --dry-run` 已确认 11 个 canonical docs；当前 shell 无 LLM API key，尚未写入 live DB。
+- [x] 导入项目 canonical docs：`tests/scripts/run_retain_project_docs.py --yes` 成功写入 live DB；11 个文档全部 `ok`，无 extraction errors。
 
 ## 下一步顺序
 
-1. **导入项目 canonical docs（有 LLM key 的 shell 中执行）**：运行 `tests/scripts/run_retain_project_docs.py --yes`，脚本会先备份 live DB；禁止 fallback 导入。
-2. **整库干净度人工确认**：对最新快照中识别出的 6 条 meta candidates 以及 dirty 候选事实进行人工清洗和标记处理。
-3. **Source Provenance 报告面细化**：工具输出已经带 `provenance` 摘要；如需审计报告/只读脚本输出更完整来源分布，再补报告层，不再改 schema。
-4. **解 HRR 饱和方案解耦实施**：
+1. **整库干净度人工确认**：对最新快照中识别出的 meta candidates 以及项目文档导入后的 dirty 候选事实进行人工清洗和标记处理。
+2. **Source Provenance 报告面细化**：工具输出已经带 `provenance` 摘要；如需审计报告/只读脚本输出更完整来源分布，再补报告层，不再改 schema。
+3. **解 HRR 饱和方案解耦实施**：
    - 探讨轻量化、非侵入性、可逆的 HRR bank 物理切分方案（如直接按 `source_doc_id` 切分并聚合 memory bank，或使用粗分类打标），以缓解 `project` bank 的容量压力，彻底与 `facts.scope` 解耦。
-5. **Scope 状态：veto / 待证（与 P2 同构，不可逆闸）**：
+4. **Scope 状态：veto / 待证（与 P2 同构，不可逆闸）**：
    - 彻底冻结 Scope 拆分的开发决策。
    - **解冻条件**：在真实使用中撞到“必须依靠域过滤才能答得了”的真实查询（需求驱动），而非“数据攒够”或“分类标签重构”等伪数据驱动。在此之前，不编写任何 Scope 相关的 schema 迁移或处理代码。
 
 ## 已知陷阱（临时）
 
-- `project` category 仍然过宽；当前快照 fact_count 933，1024 维估算 SNR 约 1.048。
+- `project` category 仍然过宽；项目文档导入后 fact_count 2083，1024 维估算 SNR 约 0.701。
 - **评估器判定边缘指令/主客观事实系统性不稳**：例如 ID 40（"算法跑分不限五个..."）与 ID 1000023（"汇报 PPT 不能展示零"）等边缘指令句，评估器极易抖动。在 Gate A 的 50 条肉眼 Go/No-Go 判定中，决不能迷信评估器单次结果，必须依靠人眼进行最终裁决。
 - 当前 reports 目录包含多轮脚本产物，不能默认 `reports/scope_gate_audit.md` 就是最新全库报告。
 - 不要直接在活 WAL 库上做结论性审计；先快照，再读快照。
@@ -86,4 +88,4 @@
 
 ---
 
-*Last updated: 2026-06-26*
+*Last updated: 2026-06-27*
