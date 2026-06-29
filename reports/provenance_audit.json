@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-06-29T15:43:07",
+  "generated_at": "2026-06-29T15:55:01",
   "source_db": "C:\\Users\\sdses\\AppData\\Local\\hermes\\memory_store.db",
-  "snapshot_db": "reports\\snapshots\\memory_store_provenance_audit_20260629_154307.db",
+  "snapshot_db": "reports\\snapshots\\memory_store_provenance_audit_20260629_155500.db",
   "read_only": true,
   "integrity_check": "ok",
   "foreign_key_violations": [],

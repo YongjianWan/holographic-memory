@@ -1,9 +1,9 @@
-"""Read-only A/B audit for hypothetical 3-way vs default 2-way RRF search.
+"""Read-only A/B audit for default 3-way vs 2-way RRF ablation.
 
-Default search uses FTS5 + Jaccard. This script compares that 2-way ranking
-with a hypothetical 3-way FTS5+Jaccard+HRR ranking on a fixed query set, so
-future changes can re-check whether HRR deserves to return. It snapshots the source DB first and never calls
-``FactRetriever.search()``, so it does not mutate retrieval_count or
+Default search uses FTS5 + Jaccard + HRR. This script compares that ranking
+with a 2-way FTS5+Jaccard ablation on a fixed query set, so future changes can
+see how much HRR moves results. It snapshots the source DB first and never
+calls ``FactRetriever.search()``, so it does not mutate retrieval_count or
 last_accessed_at.
 """
 
@@ -19,16 +19,48 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-PROJECT_ROOT = Path(__file__).absolute().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 PARENT_DIR = PROJECT_ROOT.parent
 if "" in sys.path:
     sys.path.remove("")
 sys.path.insert(0, str(PARENT_DIR))
 
+# Hermes internals are not present when running this script outside of hermes.
+# Inject minimal stubs so the holographic package can import cleanly.
 if "hermes_state" not in sys.modules:
-    hermes_state = types.ModuleType("hermes_state")
-    hermes_state.apply_wal_with_fallback = lambda conn, db_label="": None
-    sys.modules["hermes_state"] = hermes_state
+    _hermes_state = types.ModuleType("hermes_state")
+    _hermes_state.apply_wal_with_fallback = lambda conn, db_label="": None
+    sys.modules["hermes_state"] = _hermes_state
+
+if "hermes_constants" not in sys.modules:
+    _hermes_constants = types.ModuleType("hermes_constants")
+    _hermes_constants.get_hermes_home = lambda: Path(".")
+    _hermes_constants.display_hermes_home = lambda: "."
+    sys.modules["hermes_constants"] = _hermes_constants
+
+if "agent.memory_provider" not in sys.modules:
+    _memory_provider = types.ModuleType("agent.memory_provider")
+
+    class _MemoryProvider:
+        @property
+        def name(self) -> str:
+            return "stub"
+
+    _memory_provider.MemoryProvider = _MemoryProvider
+    sys.modules["agent.memory_provider"] = _memory_provider
+    sys.modules.setdefault("agent", types.ModuleType("agent"))
+
+if "tools.registry" not in sys.modules:
+    _tools_registry = types.ModuleType("tools.registry")
+    _tools_registry.tool_error = lambda message: f"ERROR: {message}"
+    sys.modules["tools.registry"] = _tools_registry
+    sys.modules.setdefault("tools", types.ModuleType("tools"))
+
+if "hermes_cli.config" not in sys.modules:
+    _hermes_cli_config = types.ModuleType("hermes_cli.config")
+    _hermes_cli_config.cfg_get = lambda config, *keys, default=None: default
+    sys.modules["hermes_cli.config"] = _hermes_cli_config
+    sys.modules.setdefault("hermes_cli", types.ModuleType("hermes_cli"))
 
 from holographic.retrieval import FactRetriever, _RRF_K  # noqa: E402
 
@@ -264,7 +296,7 @@ def write_reports(report: dict[str, Any], output_dir: Path) -> tuple[Path, Path]
         "",
         "- Source database was copied with SQLite backup API.",
         "- Report reads the copied snapshot only; it does not call `search()` and does not mutate retrieval_count or last_accessed_at.",
-        "- Default search is FTS5+Jaccard; 3-way results shown here are a hypothetical comparison path.",
+        "- Default search is FTS5+Jaccard+HRR; 2-way results shown here are an ablation path.",
         "- The audit measures ranking movement only; it does not claim relevance quality without human labels.",
         f"- Source DB: `{report['source_db']}`",
         f"- Snapshot DB: `{report['snapshot_db']}`",

@@ -6,11 +6,11 @@
 - Report reads the copied snapshot only; it does not mutate facts, schema, documents, or provenance.
 - `legacy_unknown` is derived at read time from missing `fact_provenance` rows; this report does not write placeholder provenance.
 - Source DB: `C:\Users\sdses\AppData\Local\hermes\memory_store.db`
-- Snapshot DB: `reports\snapshots\memory_store_provenance_audit_20260629_154307.db`
+- Snapshot DB: `reports\snapshots\memory_store_provenance_audit_20260629_155500.db`
 
 ## Integrity
 
-- generated_at: 2026-06-29T15:43:07
+- generated_at: 2026-06-29T15:55:01
 - integrity_check: ok
 - foreign_key_violations: 0
 - has_provenance_table: True

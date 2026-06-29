@@ -13,6 +13,7 @@ from holographic.store_migrations import (
     _migration_v2_documents,
     _migration_v3_document_hash,
     _migration_v10_fact_provenance,
+    _migration_v11_semantic_equivalence,
 )
 
 
@@ -70,7 +71,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT trust_score, last_accessed_at FROM facts"
             ).fetchone()
-            assert version == 10
+            assert version == 11
             assert row["trust_score"] == pytest.approx(0.8)
             assert row["last_accessed_at"] is None
             assert Path(f"{db_path}.bak.v7").exists()
@@ -91,7 +92,7 @@ class TestMigrations:
             assert row is not None
             # _SCHEMA is the latest structure, so a fresh DB is recognised as
             # already at the latest version and no migrations (and no backup) are needed.
-            assert int(row["version"]) == 10
+            assert int(row["version"]) == 11
 
             tables = {
                 r["name"]
@@ -101,6 +102,8 @@ class TestMigrations:
             }
             assert "documents" in tables
             assert "fact_provenance" in tables
+            assert "semantic_equivalence_groups" in tables
+            assert "semantic_equivalence_terms" in tables
 
             fact_columns = {
                 r[1]
@@ -158,7 +161,7 @@ class TestMigrations:
                 "SELECT version FROM schema_version"
             ).fetchone()
             # Should end at the latest version (migrations applied after baseline v0).
-            assert int(row["version"]) == 10
+            assert int(row["version"]) == 11
 
             columns = {
                 r[1]
@@ -209,7 +212,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            assert int(row["version"]) == 10
+            assert int(row["version"]) == 11
 
             columns = {
                 r[1]
@@ -319,6 +322,67 @@ class TestMigrations:
             store.close()
             Path(db_path).unlink(missing_ok=True)
 
+    def test_migration_v11_semantic_equivalence_tables(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        store = MemoryStore(db_path=db_path, hrr_dim=256)
+        try:
+            _migration_v11_semantic_equivalence(store._conn)
+
+            tables = {
+                r["name"]
+                for r in store._conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            assert "semantic_equivalence_groups" in tables
+            assert "semantic_equivalence_terms" in tables
+
+            group_columns = {
+                r[1]
+                for r in store._conn.execute(
+                    "PRAGMA table_info(semantic_equivalence_groups)"
+                ).fetchall()
+            }
+            assert {
+                "group_id",
+                "group_label",
+                "source",
+                "confidence",
+                "created_at",
+                "updated_at",
+            }.issubset(group_columns)
+
+            term_columns = {
+                r[1]
+                for r in store._conn.execute(
+                    "PRAGMA table_info(semantic_equivalence_terms)"
+                ).fetchall()
+            }
+            assert {
+                "term_id",
+                "group_id",
+                "term",
+                "normalized_term",
+                "language",
+                "source",
+                "confidence",
+                "created_at",
+            }.issubset(term_columns)
+
+            indexes = {
+                r["name"]
+                for r in store._conn.execute(
+                    "PRAGMA index_list(semantic_equivalence_terms)"
+                ).fetchall()
+            }
+            assert "idx_semantic_terms_normalized" in indexes
+            assert "idx_semantic_terms_group" in indexes
+        finally:
+            store.close()
+            Path(db_path).unlink(missing_ok=True)
+
     def test_partial_v2_state_is_detected_as_lower_version(self) -> None:
         """Baseline detection uses AND: documents table without text_hash is not v3."""
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
@@ -355,7 +419,7 @@ class TestMigrations:
             row = store._conn.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()
-            assert int(row["version"]) == 10
+            assert int(row["version"]) == 11
 
             columns = {
                 r[1]

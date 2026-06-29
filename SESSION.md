@@ -21,7 +21,7 @@
   - 项目 canonical docs 已导入 live DB：11 个文档，新增 active facts 1166，新增 documents 11。
   - 写入前备份：`reports/live_backups/memory_store_before_project_docs_20260627_175648.db`。
   - dirty soft-delete 写入前备份：`reports/live_backups/memory_store_before_dirty_apply_20260627_184630.db`。
-  - `facts_total=4347`，`facts_active=2199`，`facts_soft_deleted=2148`，`documents_total=20`，schema v10。
+  - `facts_total=4347`，`facts_active=2195`，`facts_soft_deleted=2152`，`documents_total=20`，schema v11。
   - `integrity_check=ok`，foreign key violations 为 0。
   - **Active 数量对平对账单（1051 -> 1034 -> 2200 -> 2199）**：
     - `1034 = 1051 + 6 (Doc 6) - 22 (Doc 8) - 1 (Doc None)`
@@ -70,10 +70,11 @@
   - 输出：`reports/provenance_audit.md` / `.json`；源库快照为 `reports/snapshots/memory_store_provenance_audit_20260629_154307.db`。
   - 结果：`facts_active=2195`，`active_known=1162`（52.94%），`active_legacy_unknown=1033`（47.06%），`provenance_rows_total=1169`，`provenance_rows_for_active=1165`。
   - 多来源 active facts 仅 2 条，`source_doc_id` 与 provenance doc mismatch 样本也为 2 条，均来自 merge 后 survivor 保留单值 `source_doc_id`、而 `fact_provenance` 记录额外来源；这证明报告面能展示“单值归属不是完整 provenance”的边界。
-- **RQ：默认 search 降为两路 RRF（2026-06-29）**：
-  - 新增只读 A/B 脚本 `tests/scripts/run_rrf_ab_audit.py`，先快照 live DB，再比较 FTS5+Jaccard 两路默认 ranking 与假设的 FTS5+Jaccard+HRR 三路 ranking；脚本不调用 `search()`，不污染 `retrieval_count` / `last_accessed_at`。
+- **RQ：默认 search 保持三路 RRF + v11 等价词表（2026-06-29）**：
+  - 新增只读 A/B 脚本 `tests/scripts/run_rrf_ab_audit.py`，先快照 live DB，再比较 FTS5+Jaccard+HRR 三路默认 ranking 与 FTS5+Jaccard 两路 ablation；脚本不调用 `search()`，不污染 `retrieval_count` / `last_accessed_at`。
   - 输出：`reports/rrf_ab_audit.md` / `.json`；结果为 `median_top5_overlap=0.8`，`min_top5_overlap=0.4`，20 条固定查询中 12 条 top1 改变，`hrr_only_top3_query_count=0`。
-  - 结论：HRR 没有给默认 search 带来独占 top 召回，却会显著重排 FTS/Jaccard 结果；`FactRetriever.search()` 已降为 FTS5+Jaccard 两路 RRF，HRR 保留给 `probe` / `related` / `reason` 和显式审计。
+  - 结论：HRR 对排序有实质影响，且在无 embedding/无语义召回前提下是唯一可行的本地弱语义/结构信号；`FactRetriever.search()` 保持 FTS5+Jaccard+HRR 三路 RRF。
+  - 新增 migration v11 `semantic_equivalence_groups` / `semantic_equivalence_terms`，用于导入训练好的词语等价/同义词表；search 会用这张本地 SQLite 表做 query expansion。该表不是 embedding 服务，不引入常驻依赖。
 
 ## 进行中
 
@@ -97,7 +98,7 @@
 - [x] 宪法 §6.3 补 §6.4：项目自身元文档经原子提炼后可入库，不算违反 changelog/操作指令排除条款。
 - [x] 完成当前 49 条 dirty/meta review 候选人工裁决：45 keep / 4 dirty / 0 pending；4 条 dirty 已在第一批软删除，第二批无新增写库动作。
 - [x] 补齐 Source Provenance 只读报告面：当前 active facts 中 1162 known / 1033 legacy_unknown，报告明确展示多文档 merge 来源而不改 schema。
-- [x] 完成默认 search HRR 去留裁决：基于固定查询 A/B 报告，`search()` 改为 FTS5+Jaccard 两路 RRF，HRR 留在组合检索路径。
+- [x] 完成默认 search HRR 去留裁决：基于固定查询 A/B 和用户拍板，`search()` 保持 FTS5+Jaccard+HRR 三路 RRF；v11 增加本地 semantic equivalence 表补词语等价。
 
 ## 下一步顺序
 

@@ -72,6 +72,34 @@ CREATE INDEX IF NOT EXISTS idx_fact_provenance_fact
 CREATE INDEX IF NOT EXISTS idx_fact_provenance_doc
     ON fact_provenance(doc_id);
 
+CREATE TABLE IF NOT EXISTS semantic_equivalence_groups (
+    group_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_label TEXT NOT NULL,
+    source      TEXT DEFAULT '',
+    confidence  REAL DEFAULT 1.0,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(group_label, source)
+);
+
+CREATE TABLE IF NOT EXISTS semantic_equivalence_terms (
+    term_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id        INTEGER NOT NULL REFERENCES semantic_equivalence_groups(group_id) ON DELETE CASCADE,
+    term            TEXT NOT NULL,
+    normalized_term TEXT NOT NULL,
+    language        TEXT DEFAULT '',
+    source          TEXT DEFAULT '',
+    confidence      REAL DEFAULT 1.0,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(group_id, normalized_term, language, source)
+);
+
+CREATE INDEX IF NOT EXISTS idx_semantic_terms_normalized
+    ON semantic_equivalence_terms(normalized_term);
+
+CREATE INDEX IF NOT EXISTS idx_semantic_terms_group
+    ON semantic_equivalence_terms(group_id);
+
 CREATE TABLE IF NOT EXISTS entities (
     entity_id   INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT NOT NULL,
@@ -359,6 +387,55 @@ def _migration_v10_fact_provenance(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migration_v11_semantic_equivalence(conn: sqlite3.Connection) -> None:
+    """Add local semantic-equivalence tables for query expansion.
+
+    These tables are intentionally plain SQLite lookup tables. They can hold
+    imported synonym/equivalence lexicons from trained resources without adding
+    a daemon, embedding service, or irreversible schema coupling to retrieval.
+    """
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS semantic_equivalence_groups (
+            group_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_label TEXT NOT NULL,
+            source      TEXT DEFAULT '',
+            confidence  REAL DEFAULT 1.0,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(group_label, source)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS semantic_equivalence_terms (
+            term_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id        INTEGER NOT NULL REFERENCES semantic_equivalence_groups(group_id) ON DELETE CASCADE,
+            term            TEXT NOT NULL,
+            normalized_term TEXT NOT NULL,
+            language        TEXT DEFAULT '',
+            source          TEXT DEFAULT '',
+            confidence      REAL DEFAULT 1.0,
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(group_id, normalized_term, language, source)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_semantic_terms_normalized
+            ON semantic_equivalence_terms(normalized_term)
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_semantic_terms_group
+            ON semantic_equivalence_terms(group_id)
+        """
+    )
+
+
 _MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _migration_v1_ensure_hrr_vector,
     _migration_v2_documents,
@@ -370,6 +447,7 @@ _MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _migration_v8_retrieval_recency,
     _migration_v9_extraction_runs,
     _migration_v10_fact_provenance,
+    _migration_v11_semantic_equivalence,
 ]
 
 
@@ -426,6 +504,12 @@ def _detect_schema_version(conn: sqlite3.Connection) -> int:
         and "last_accessed_at" in fact_columns
     ):
         if "extraction_runs" in tables and "extraction_run_id" in fact_columns:
+            if (
+                "fact_provenance" in tables
+                and "semantic_equivalence_groups" in tables
+                and "semantic_equivalence_terms" in tables
+            ):
+                return 11
             if "fact_provenance" in tables:
                 return 10
             return 9

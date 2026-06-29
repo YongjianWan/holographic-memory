@@ -4,14 +4,14 @@
 
 - Source database was copied with SQLite backup API.
 - Report reads the copied snapshot only; it does not call `search()` and does not mutate retrieval_count or last_accessed_at.
-- Default search is FTS5+Jaccard; 3-way results shown here are a hypothetical comparison path.
+- Default search is FTS5+Jaccard+HRR; 2-way results shown here are an ablation path.
 - The audit measures ranking movement only; it does not claim relevance quality without human labels.
 - Source DB: `C:\Users\sdses\AppData\Local\hermes\memory_store.db`
-- Snapshot DB: `reports\snapshots\memory_store_rrf_ab_audit_20260629_154036.db`
+- Snapshot DB: `reports\snapshots\memory_store_rrf_ab_audit_20260629_155542.db`
 
 ## Summary
 
-- generated_at: 2026-06-29T15:40:39
+- generated_at: 2026-06-29T15:55:45
 - facts_active: 2195
 - query_count: 20
 - median_top5_overlap: 0.8

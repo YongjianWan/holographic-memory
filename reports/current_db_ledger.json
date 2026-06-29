@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-06-27T18:46:42",
+  "generated_at": "2026-06-29T15:55:01",
   "source_db": "C:\\Users\\sdses\\AppData\\Local\\hermes\\memory_store.db",
-  "snapshot_db": "reports\\snapshots\\memory_store_snapshot_20260627_184641.db",
-  "schema_version": 10,
+  "snapshot_db": "reports\\snapshots\\memory_store_snapshot_20260629_155500.db",
+  "schema_version": 11,
   "integrity_check": "ok",
   "foreign_key_violations": [],
   "facts_total": 4347,
-  "facts_active": 2199,
-  "facts_soft_deleted": 2148,
+  "facts_active": 2195,
+  "facts_soft_deleted": 2152,
   "documents_total": 20,
   "active_by_category": [
     {
       "category": "project",
-      "active_facts": 2083
+      "active_facts": 2079
     },
     {
       "category": "personal",
@@ -78,7 +78,7 @@
     },
     {
       "source_doc_id": 18,
-      "active_facts": 98
+      "active_facts": 96
     },
     {
       "source_doc_id": 19,
@@ -94,7 +94,7 @@
     },
     {
       "source_doc_id": 22,
-      "active_facts": 94
+      "active_facts": 92
     },
     {
       "source_doc_id": 23,
@@ -129,6 +129,14 @@
     {
       "source_doc_id": 9,
       "soft_deleted_facts": 697
+    },
+    {
+      "source_doc_id": 18,
+      "soft_deleted_facts": 2
+    },
+    {
+      "source_doc_id": 22,
+      "soft_deleted_facts": 2
     }
   ],
   "documents": [
@@ -219,8 +227,8 @@
     {
       "doc_id": 18,
       "source": "SESSION.md",
-      "active_facts": 98,
-      "soft_deleted_facts": 0,
+      "active_facts": 96,
+      "soft_deleted_facts": 2,
       "created_at": "2026-06-27 09:59:13"
     },
     {
@@ -247,8 +255,8 @@
     {
       "doc_id": 22,
       "source": "docs\\achieve\\session_2026-06-24_legacy_status.md",
-      "active_facts": 94,
-      "soft_deleted_facts": 0,
+      "active_facts": 92,
+      "soft_deleted_facts": 2,
       "created_at": "2026-06-27 10:02:40"
     },
     {
@@ -274,7 +282,7 @@
     }
   ],
   "merge_targets": 1,
-  "merge_events": 2148,
+  "merge_events": 2152,
   "source_lost_candidates": 0,
   "meta_candidates": [
     {
@@ -880,24 +888,124 @@
   ],
   "memory_banks": [
     {
-      "bank_name": "cat:general",
+      "bank_name": "cat:general|doc:none|shard:00",
       "fact_count": 1,
       "snr_estimate_1024": 32.0
     },
     {
-      "bank_name": "cat:personal",
+      "bank_name": "cat:personal|doc:9|shard:00",
       "fact_count": 110,
       "snr_estimate_1024": 3.051
     },
     {
-      "bank_name": "cat:project",
-      "fact_count": 2083,
-      "snr_estimate_1024": 0.701
+      "bank_name": "cat:project|doc:15|shard:00",
+      "fact_count": 130,
+      "snr_estimate_1024": 2.807
     },
     {
-      "bank_name": "cat:user_pref",
-      "fact_count": 6,
-      "snr_estimate_1024": 13.064
+      "bank_name": "cat:project|doc:16|shard:00",
+      "fact_count": 117,
+      "snr_estimate_1024": 2.958
+    },
+    {
+      "bank_name": "cat:project|doc:17|shard:00",
+      "fact_count": 77,
+      "snr_estimate_1024": 3.647
+    },
+    {
+      "bank_name": "cat:project|doc:18|shard:00",
+      "fact_count": 96,
+      "snr_estimate_1024": 3.266
+    },
+    {
+      "bank_name": "cat:project|doc:19|shard:00",
+      "fact_count": 66,
+      "snr_estimate_1024": 3.939
+    },
+    {
+      "bank_name": "cat:project|doc:1|shard:00",
+      "fact_count": 227,
+      "snr_estimate_1024": 2.124
+    },
+    {
+      "bank_name": "cat:project|doc:20|shard:00",
+      "fact_count": 70,
+      "snr_estimate_1024": 3.825
+    },
+    {
+      "bank_name": "cat:project|doc:21|shard:00",
+      "fact_count": 247,
+      "snr_estimate_1024": 2.036
+    },
+    {
+      "bank_name": "cat:project|doc:22|shard:00",
+      "fact_count": 92,
+      "snr_estimate_1024": 3.336
+    },
+    {
+      "bank_name": "cat:project|doc:23|shard:00",
+      "fact_count": 45,
+      "snr_estimate_1024": 4.77
+    },
+    {
+      "bank_name": "cat:project|doc:24|shard:00",
+      "fact_count": 14,
+      "snr_estimate_1024": 8.552
+    },
+    {
+      "bank_name": "cat:project|doc:25|shard:00",
+      "fact_count": 208,
+      "snr_estimate_1024": 2.219
+    },
+    {
+      "bank_name": "cat:project|doc:3|shard:00",
+      "fact_count": 47,
+      "snr_estimate_1024": 4.668
+    },
+    {
+      "bank_name": "cat:project|doc:4|shard:00",
+      "fact_count": 77,
+      "snr_estimate_1024": 3.647
+    },
+    {
+      "bank_name": "cat:project|doc:5|shard:00",
+      "fact_count": 46,
+      "snr_estimate_1024": 4.718
+    },
+    {
+      "bank_name": "cat:project|doc:6|shard:00",
+      "fact_count": 256,
+      "snr_estimate_1024": 2.0
+    },
+    {
+      "bank_name": "cat:project|doc:6|shard:01",
+      "fact_count": 8,
+      "snr_estimate_1024": 11.314
+    },
+    {
+      "bank_name": "cat:project|doc:7|shard:00",
+      "fact_count": 14,
+      "snr_estimate_1024": 8.552
+    },
+    {
+      "bank_name": "cat:project|doc:8|shard:00",
+      "fact_count": 218,
+      "snr_estimate_1024": 2.167
+    },
+    {
+      "bank_name": "cat:project|doc:9|shard:00",
+      "fact_count": 2,
+      "snr_estimate_1024": 22.627
+    },
+    {
+      "bank_name": "cat:project|doc:none|shard:00",
+      "fact_count": 22,
+      "snr_estimate_1024": 6.822
+    },
+    {
+      "bank_name": "cat:user_pref|doc:none|shard:00",
+      "fact_count": 5,
+      "snr_estimate_1024": 14.311
     }
   ]
 }

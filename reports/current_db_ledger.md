@@ -5,30 +5,30 @@
 - Source database was copied with SQLite backup API.
 - Counts below come from the copied snapshot, not from the live WAL database.
 - Source DB: `C:\Users\sdses\AppData\Local\hermes\memory_store.db`
-- Snapshot DB: `reports\snapshots\memory_store_snapshot_20260627_184641.db`
+- Snapshot DB: `reports\snapshots\memory_store_snapshot_20260629_155500.db`
 
 ## Integrity
 
-- generated_at: 2026-06-27T18:46:42
-- schema_version: 10
+- generated_at: 2026-06-29T15:55:01
+- schema_version: 11
 - integrity_check: ok
 - foreign_key_violations: 0
 
 ## Fact Counts
 
 - facts_total: 4347
-- facts_active: 2199
-- facts_soft_deleted: 2148
+- facts_active: 2195
+- facts_soft_deleted: 2152
 - documents_total: 20
 - merge_targets: 1
-- merge_events: 2148
+- merge_events: 2152
 - cross-source merge candidates: 0
 
 ## Active Facts By Category
 
 | category | active_facts |
 |---|---:|
-| project | 2083 |
+| project | 2079 |
 | personal | 110 |
 | user_pref | 5 |
 | general | 1 |
@@ -49,11 +49,11 @@
 | 15 | 130 | 0 | AGENTS.md |
 | 16 | 117 | 0 | CHANGELOG.md |
 | 17 | 77 | 0 | ROADMAP.md |
-| 18 | 98 | 0 | SESSION.md |
+| 18 | 96 | 2 | SESSION.md |
 | 19 | 66 | 0 | TECH_DEBT.md |
 | 20 | 70 | 0 | docs\achieve\CODE_SUMMARY.md |
 | 21 | 247 | 0 | docs\achieve\holo-改造方案.md |
-| 22 | 94 | 0 | docs\achieve\session_2026-06-24_legacy_status.md |
+| 22 | 92 | 2 | docs\achieve\session_2026-06-24_legacy_status.md |
 | 23 | 45 | 0 | docs\achieve\并发补丁_多agent共享库.md |
 | 24 | 14 | 0 | docs\README.md |
 | 25 | 208 | 0 | docs\宪法.md |
@@ -62,10 +62,30 @@
 
 | bank_name | fact_count | snr |
 |---|---:|---:|
-| cat:general | 1 | 32.0 |
-| cat:personal | 110 | 3.051 |
-| cat:project | 2083 | 0.701 |
-| cat:user_pref | 6 | 13.064 |
+| cat:general|doc:none|shard:00 | 1 | 32.0 |
+| cat:personal|doc:9|shard:00 | 110 | 3.051 |
+| cat:project|doc:15|shard:00 | 130 | 2.807 |
+| cat:project|doc:16|shard:00 | 117 | 2.958 |
+| cat:project|doc:17|shard:00 | 77 | 3.647 |
+| cat:project|doc:18|shard:00 | 96 | 3.266 |
+| cat:project|doc:19|shard:00 | 66 | 3.939 |
+| cat:project|doc:1|shard:00 | 227 | 2.124 |
+| cat:project|doc:20|shard:00 | 70 | 3.825 |
+| cat:project|doc:21|shard:00 | 247 | 2.036 |
+| cat:project|doc:22|shard:00 | 92 | 3.336 |
+| cat:project|doc:23|shard:00 | 45 | 4.77 |
+| cat:project|doc:24|shard:00 | 14 | 8.552 |
+| cat:project|doc:25|shard:00 | 208 | 2.219 |
+| cat:project|doc:3|shard:00 | 47 | 4.668 |
+| cat:project|doc:4|shard:00 | 77 | 3.647 |
+| cat:project|doc:5|shard:00 | 46 | 4.718 |
+| cat:project|doc:6|shard:00 | 256 | 2.0 |
+| cat:project|doc:6|shard:01 | 8 | 11.314 |
+| cat:project|doc:7|shard:00 | 14 | 8.552 |
+| cat:project|doc:8|shard:00 | 218 | 2.167 |
+| cat:project|doc:9|shard:00 | 2 | 22.627 |
+| cat:project|doc:none|shard:00 | 22 | 6.822 |
+| cat:user_pref|doc:none|shard:00 | 5 | 14.311 |
 
 ## Meta Candidates
 

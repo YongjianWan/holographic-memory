@@ -52,7 +52,7 @@ class TestRRFSearch:
 
         results = retriever.search("Python", limit=5)
         assert results
-        # Two default methods max contribution: 2 * 1/60 ~= 0.033 (plus boosts).
+        # Three default methods max contribution: 3 * 1/60 = 0.05 (plus boosts).
         # Any score should be positive and reasonably small for a small corpus.
         for r in results:
             assert 0.0 < r["score"] < 1.0
@@ -86,20 +86,60 @@ class TestRRFSearch:
         results = retriever.search("Python", limit=5)
         assert len(results) == 2
 
-    def test_default_search_does_not_call_hrr_ranking(
+    def test_default_search_keeps_hrr_ranking(
         self, retriever: FactRetriever, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         retriever.store.add_fact("Python provenance uses fact_provenance rows")
         retriever.store.add_fact("Legacy unknown facts have no provenance rows")
+        called = {"hrr": False}
 
-        def fail_hrr(*_args, **_kwargs):
-            raise AssertionError("default search should stay FTS5+Jaccard only")
+        original_hrr = retriever._hrr_ranking
 
-        monkeypatch.setattr(retriever, "_hrr_ranking", fail_hrr)
+        def spy_hrr(*args, **kwargs):
+            called["hrr"] = True
+            return original_hrr(*args, **kwargs)
+
+        monkeypatch.setattr(retriever, "_hrr_ranking", spy_hrr)
 
         results = retriever.search("Python provenance", min_trust=0.0, limit=5)
 
         assert results
+        assert called["hrr"] is True
+
+    def test_search_expands_query_from_semantic_equivalence_table(
+        self, retriever: FactRetriever
+    ) -> None:
+        retriever.store.add_fact("Artificial intelligence recall should be local")
+        retriever.store._conn.execute(
+            "INSERT INTO semantic_equivalence_groups (group_label, source) VALUES (?, ?)",
+            ("ai", "test"),
+        )
+        group_id = retriever.store._conn.execute(
+            "SELECT group_id FROM semantic_equivalence_groups WHERE group_label = ?",
+            ("ai",),
+        ).fetchone()["group_id"]
+        retriever.store._conn.executemany(
+            """
+            INSERT INTO semantic_equivalence_terms
+                (group_id, term, normalized_term, language, source)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            [
+                (group_id, "AI", "ai", "en", "test"),
+                (
+                    group_id,
+                    "artificial intelligence",
+                    "artificial intelligence",
+                    "en",
+                    "test",
+                ),
+            ],
+        )
+        retriever.store._conn.commit()
+
+        results = retriever.search("AI recall", min_trust=0.0, limit=5)
+
+        assert any("Artificial intelligence" in r["content"] for r in results)
 
     def test_category_filter(self, retriever: FactRetriever) -> None:
         retriever.store.add_fact("Python is a language", category="project")
