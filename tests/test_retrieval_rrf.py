@@ -52,7 +52,7 @@ class TestRRFSearch:
 
         results = retriever.search("Python", limit=5)
         assert results
-        # Three methods max contribution: 3 * 1/60 = 0.05 (plus boosts).
+        # Two default methods max contribution: 2 * 1/60 ~= 0.033 (plus boosts).
         # Any score should be positive and reasonably small for a small corpus.
         for r in results:
             assert 0.0 < r["score"] < 1.0
@@ -60,7 +60,7 @@ class TestRRFSearch:
     def test_fact_ranked_high_by_single_method_is_recovered(
         self, retriever: FactRetriever
     ) -> None:
-        """A fact that only HRR likes (same words, different order) should still appear."""
+        """A fact with the same terms in different order should still appear."""
         retriever.store.add_fact("language programming Python is a")
         retriever.store.add_fact("completely unrelated astronomy fact")
 
@@ -85,6 +85,21 @@ class TestRRFSearch:
         # Re-encode query will fail if HRR path is taken; search must still work.
         results = retriever.search("Python", limit=5)
         assert len(results) == 2
+
+    def test_default_search_does_not_call_hrr_ranking(
+        self, retriever: FactRetriever, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        retriever.store.add_fact("Python provenance uses fact_provenance rows")
+        retriever.store.add_fact("Legacy unknown facts have no provenance rows")
+
+        def fail_hrr(*_args, **_kwargs):
+            raise AssertionError("default search should stay FTS5+Jaccard only")
+
+        monkeypatch.setattr(retriever, "_hrr_ranking", fail_hrr)
+
+        results = retriever.search("Python provenance", min_trust=0.0, limit=5)
+
+        assert results
 
     def test_category_filter(self, retriever: FactRetriever) -> None:
         retriever.store.add_fact("Python is a language", category="project")

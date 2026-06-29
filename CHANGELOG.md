@@ -49,6 +49,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shows `2195 active / 1162 known provenance / 1033 legacy_unknown`, with 2
   multi-document active facts proving merge provenance is visible without
   treating `source_doc_id` as complete provenance.
+- **Default search now uses 2-way RRF**: added
+  `tests/scripts/run_rrf_ab_audit.py` and `reports/rrf_ab_audit.md` for a
+  read-only fixed-query comparison of FTS5+Jaccard vs hypothetical
+  FTS5+Jaccard+HRR. The live snapshot showed median top5 overlap 0.8, 12/20
+  top1 changes, and no HRR-only top results, so `FactRetriever.search()` now
+  uses FTS5 + Jaccard RRF by default. HRR remains available for `probe`,
+  `related`, `reason`, and explicit audits.
 - **Decision record**: retrieval remains grep/FTS/Jaccard-first. Missing
   embedding-based semantic recall is an accepted local/no-daemon tradeoff, not
   current technical debt; future recall improvements should prefer query
@@ -105,7 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New plugin config keys: `gc_interval_days`, `gc_decay_max_days`, `gc_decay_floor`.
 - Migration v6: rebuild `facts_fts` to index **all** facts (including soft-deleted `merged_into IS NOT NULL`), fixing the v5 active-only coverage bug that broke reactivation.
 - `_hrr_quality_audit.py` diagnostic script for side-by-side 3-way vs 2-way RRF evaluation on a live database.
-- RRF (Reciprocal Rank Fusion) based `FactRetriever.search` combining FTS5, Jaccard token overlap, and HRR vector similarity using rank positions instead of raw scores.
+- RRF (Reciprocal Rank Fusion) based `FactRetriever.search`; originally combined FTS5, Jaccard token overlap, and HRR vector similarity using rank positions instead of raw scores. As of 2026-06-29, default `search()` uses FTS5 + Jaccard only, with HRR reserved for compositional retrieval and audits.
 - Multiplicative trust/recency boosts centered near 1.0 and bounded to roughly
   ±10%, so secondary signals cannot overpower RRF relevance.
 - Graceful fallback to FTS5 + Jaccard RRF when numpy is unavailable.

@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-06-29T15:33:18",
+  "generated_at": "2026-06-29T15:43:07",
   "source_db": "C:\\Users\\sdses\\AppData\\Local\\hermes\\memory_store.db",
-  "snapshot_db": "reports\\snapshots\\memory_store_provenance_audit_20260629_153318.db",
+  "snapshot_db": "reports\\snapshots\\memory_store_provenance_audit_20260629_154307.db",
   "read_only": true,
   "integrity_check": "ok",
   "foreign_key_violations": [],
@@ -27,10 +27,10 @@
   "active_by_category": [
     {
       "category": "project",
-      "active_facts": 2082,
+      "active_facts": 2079,
       "known_facts": 1162,
-      "legacy_unknown": 920,
-      "known_pct": 55.81,
+      "legacy_unknown": 917,
+      "known_pct": 55.89,
       "provenance_rows": 1165
     },
     {

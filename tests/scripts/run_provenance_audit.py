@@ -66,7 +66,8 @@ def _pct(part: int, total: int) -> float:
 
 
 def build_report(snapshot: Path, source: Path, *, sample_limit: int = 50) -> dict[str, Any]:
-    with _open_readonly(snapshot) as conn:
+    conn = _open_readonly(snapshot)
+    try:
         facts_active = int(
             _fetch_scalar(conn, "SELECT COUNT(*) FROM facts WHERE merged_into IS NULL")
         )
@@ -193,9 +194,8 @@ def build_report(snapshot: Path, source: Path, *, sample_limit: int = 50) -> dic
                 """
                 SELECT
                     f.category,
-                    COUNT(*) AS active_facts,
-                    SUM(CASE WHEN p.fact_id IS NULL THEN 1 ELSE 0 END) AS legacy_unknown,
-                    SUM(CASE WHEN p.fact_id IS NOT NULL THEN 1 ELSE 0 END) AS known_rows,
+                    COUNT(DISTINCT f.fact_id) AS active_facts,
+                    COUNT(p.provenance_id) AS known_rows,
                     COUNT(DISTINCT CASE WHEN p.fact_id IS NOT NULL THEN f.fact_id END) AS known_facts
                 FROM facts f
                 LEFT JOIN fact_provenance p ON p.fact_id = f.fact_id
@@ -253,6 +253,8 @@ def build_report(snapshot: Path, source: Path, *, sample_limit: int = 50) -> dic
                 """
             )
         ]
+    finally:
+        conn.close()
 
     return {
         "generated_at": datetime.now().isoformat(timespec="seconds"),

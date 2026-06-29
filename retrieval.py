@@ -1,8 +1,13 @@
 """Multi-strategy fact retrieval using Reciprocal Rank Fusion (RRF).
 
-Combines FTS5 full-text search, Jaccard token overlap, and HRR vector
-similarity by ranking position rather than raw score, avoiding the
+Default search combines FTS5 full-text search and Jaccard token overlap by
+ranking position rather than raw score, avoiding the
 "apples + oranges" problem of merging incomparable signals.
+
+HRR remains available for compositional paths (probe / related / reason) and
+for explicit audits, but it is not part of the default search ranking. Current
+corpus A/B evidence showed HRR materially changed ordering without contributing
+unique top results.
 """
 
 from __future__ import annotations
@@ -58,7 +63,7 @@ class FactRetriever:
         min_trust: float = 0.3,
         limit: int = 10,
     ) -> list[dict]:
-        """RRF fusion search across FTS5, Jaccard, and HRR signals.
+        """RRF fusion search across FTS5 and Jaccard signals.
 
         Pipeline:
         1. Each method independently returns a ranked list of top facts.
@@ -77,13 +82,12 @@ class FactRetriever:
         # Independent rankings from each method.
         fts_ranking = self._fts_ranking(query, category, min_trust, pool)
         jaccard_ranking = self._jaccard_ranking(query, category, min_trust, pool)
-        hrr_ranking = self._hrr_ranking(query, category, min_trust, pool)
 
-        if not (fts_ranking or jaccard_ranking or hrr_ranking):
+        if not (fts_ranking or jaccard_ranking):
             return []
 
         # Union of candidate fact IDs.
-        candidate_ids = set(fts_ranking) | set(jaccard_ranking) | set(hrr_ranking)
+        candidate_ids = set(fts_ranking) | set(jaccard_ranking)
 
         # Fetch full rows for the candidate set.
         rows = self._fetch_facts(candidate_ids, category, min_trust)
@@ -100,8 +104,6 @@ class FactRetriever:
                 rrf_score += 1.0 / (_RRF_K + fts_ranking[fid])
             if fid in jaccard_ranking:
                 rrf_score += 1.0 / (_RRF_K + jaccard_ranking[fid])
-            if fid in hrr_ranking:
-                rrf_score += 1.0 / (_RRF_K + hrr_ranking[fid])
 
             # Trust boost: centered at 1.0, ±10% over [0, 1].
             trust_boost = 1.0 + 0.2 * (fact["trust_score"] - 0.5)

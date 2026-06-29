@@ -120,6 +120,16 @@ def test_build_report_counts_multi_doc_and_source_doc_mismatch(tmp_path: Path) -
     assert report["source_doc_mismatch_sample_count"] == 1
     assert report["multi_doc_fact_samples"][0]["fact_id"] == 10
     assert report["source_doc_mismatch_samples"][0]["provenance_doc_id"] == 2
+    assert report["active_by_category"] == [
+        {
+            "category": "project",
+            "active_facts": 1,
+            "known_facts": 1,
+            "legacy_unknown": 0,
+            "known_pct": 100.0,
+            "provenance_rows": 2,
+        }
+    ]
 
 
 def test_build_report_handles_pre_v10_without_provenance_table(tmp_path: Path) -> None:

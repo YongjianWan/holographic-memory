@@ -1,0 +1,1841 @@
+{
+  "generated_at": "2026-06-29T15:40:39",
+  "source_db": "C:\\Users\\sdses\\AppData\\Local\\hermes\\memory_store.db",
+  "snapshot_db": "reports\\snapshots\\memory_store_rrf_ab_audit_20260629_154036.db",
+  "read_only": true,
+  "facts_active": 2195,
+  "query_count": 20,
+  "category": null,
+  "min_trust": 0.0,
+  "pool": 100,
+  "limit": 5,
+  "summary": {
+    "median_top5_overlap": 0.8,
+    "min_top5_overlap": 0.4,
+    "top1_changed_count": 12,
+    "hrr_only_top3_query_count": 0,
+    "recommendation": "hrr_changes_rankings_materially_needs_human_relevance_judgment"
+  },
+  "queries": [
+    {
+      "query": "Holographic memory provider",
+      "candidate_counts": {
+        "fts": 62,
+        "jaccard": 37,
+        "hrr": 100,
+        "union": 133
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001115,
+          "score": 0.03086828,
+          "content": "Holographic Memory 是 hermes-agent 的一个 MemoryProvider 插件。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1,
+          "score": 0.03015286,
+          "content": "Hindsight memory system fixed and running on port 9100. DeepSeek v4 Flash + BAAI/bge-small-en-v1.5 + FlashRank. Migrated to holographic memory provider on 2026-06-15 due to PyTorch embedding model loading failure (Cannot copy out of meta tensor).",
+          "category": "project"
+        },
+        {
+          "fact_id": 24,
+          "score": 0.029955,
+          "content": "holographic memory 是主动查询机制（非自动注入），与 hindsight 的 pre_llm_call 自动召回不同。使用分层策略：高频/关键偏好放 MEMORY（自动注入），档案/项目细节放 holographic（按需 fact_store search）。hindsight 已弃用。",
+          "category": "general"
+        },
+        {
+          "fact_id": 1001116,
+          "score": 0.02990819,
+          "content": "Holographic Memory 使用本地 SQLite 做事实存储。",
+          "category": "project"
+        },
+        {
+          "fact_id": 22,
+          "score": 0.02970015,
+          "content": "Holographic memory provider activated on 2026-06-15. SQLite database at ~/AppData/Local/hermes/memory_store.db. HRR dimension 1024, auto_extract enabled, default trust 0.5. No external dependencies, no daemon, no model loading. Replaces hindsight which died from PyTorch meta tensor error.",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001115,
+          "score": 0.04725222,
+          "content": "Holographic Memory 是 hermes-agent 的一个 MemoryProvider 插件。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1,
+          "score": 0.04571105,
+          "content": "Hindsight memory system fixed and running on port 9100. DeepSeek v4 Flash + BAAI/bge-small-en-v1.5 + FlashRank. Migrated to holographic memory provider on 2026-06-15 due to PyTorch embedding model loading failure (Cannot copy out of meta tensor).",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001116,
+          "score": 0.04483231,
+          "content": "Holographic Memory 使用本地 SQLite 做事实存储。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001590,
+          "score": 0.04471939,
+          "content": "Holographic Memory 项目生成于 2026-06-24。",
+          "category": "project"
+        },
+        {
+          "fact_id": 22,
+          "score": 0.04434316,
+          "content": "Holographic memory provider activated on 2026-06-15. SQLite database at ~/AppData/Local/hermes/memory_store.db. HRR dimension 1024, auto_extract enabled, default trust 0.5. No external dependencies, no daemon, no model loading. Replaces hindsight which died from PyTorch meta tensor error.",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001115,
+        1,
+        24,
+        1001116,
+        22
+      ],
+      "top_3way_ids": [
+        1001115,
+        1,
+        1001116,
+        1001590,
+        22
+      ],
+      "top5_overlap": 0.8,
+      "top1_changed": false,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "fact_provenance legacy_unknown",
+      "candidate_counts": {
+        "fts": 100,
+        "jaccard": 11,
+        "hrr": 100,
+        "union": 186
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001370,
+          "score": 0.03100655,
+          "content": "Empty provenance is projected as legacy_unknown on read.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001251,
+          "score": 0.03034817,
+          "content": "Facts with no provenance rows return derived legacy_unknown without writing placeholder rows.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001153,
+          "score": 0.03026477,
+          "content": "fact_provenance 前向来源账本已实现（v10）。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001498,
+          "score": 0.02986006,
+          "content": "legacy_unknown 必须读时派生，禁止写占位。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001367,
+          "score": 0.02945204,
+          "content": "Full provenance is provided via fact_provenance.",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001370,
+          "score": 0.04712624,
+          "content": "Empty provenance is projected as legacy_unknown on read.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001367,
+          "score": 0.04583599,
+          "content": "Full provenance is provided via fact_provenance.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001251,
+          "score": 0.0454909,
+          "content": "Facts with no provenance rows return derived legacy_unknown without writing placeholder rows.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001498,
+          "score": 0.04477679,
+          "content": "legacy_unknown 必须读时派生，禁止写占位。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001247,
+          "score": 0.04463439,
+          "content": "Migration v10 adds forward-only fact_provenance with (fact_id, doc_id, source_fact_id) uniqueness.",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001370,
+        1001251,
+        1001153,
+        1001498,
+        1001367
+      ],
+      "top_3way_ids": [
+        1001370,
+        1001367,
+        1001251,
+        1001498,
+        1001247
+      ],
+      "top5_overlap": 0.8,
+      "top1_changed": false,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "source_doc_id provenance",
+      "candidate_counts": {
+        "fts": 100,
+        "jaccard": 31,
+        "hrr": 100,
+        "union": 176
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001494,
+          "score": 0.03250363,
+          "content": "source_doc_id 是单值归属，不是完整 provenance；发生 merge 后不能用它推导完整来源。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001366,
+          "score": 0.03152668,
+          "content": "source_doc_id is a legacy single-value attribution, not full provenance.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001248,
+          "score": 0.02912162,
+          "content": "New document retains record origin/merge provenance.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001307,
+          "score": 0.02789621,
+          "content": "TECH_DEBT.md separates source provenance from scope-gate decisions.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001773,
+          "score": 0.02686331,
+          "content": "要回看完整时按 source_doc_id 拉回原文。",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001366,
+          "score": 0.04791062,
+          "content": "source_doc_id is a legacy single-value attribution, not full provenance.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001248,
+          "score": 0.04473757,
+          "content": "New document retains record origin/merge provenance.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001494,
+          "score": 0.04469169,
+          "content": "source_doc_id 是单值归属，不是完整 provenance；发生 merge 后不能用它推导完整来源。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001307,
+          "score": 0.04303894,
+          "content": "TECH_DEBT.md separates source provenance from scope-gate decisions.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001367,
+          "score": 0.04288988,
+          "content": "Full provenance is provided via fact_provenance.",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001494,
+        1001366,
+        1001248,
+        1001307,
+        1001773
+      ],
+      "top_3way_ids": [
+        1001366,
+        1001248,
+        1001494,
+        1001307,
+        1001367
+      ],
+      "top5_overlap": 0.8,
+      "top1_changed": true,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "HRR bank sharding",
+      "candidate_counts": {
+        "fts": 93,
+        "jaccard": 83,
+        "hrr": 100,
+        "union": 131
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001375,
+          "score": 0.03199989,
+          "content": "HRR bank saturation solutions are not bound to scope.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001583,
+          "score": 0.03172765,
+          "content": "后续agent容易把category过宽、HRR bank饱和和scope schema绑成一个包。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002205,
+          "score": 0.0302855,
+          "content": "Category/scope decoupling and HRR bank by scope is gated on Gate B.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001402,
+          "score": 0.03019603,
+          "content": "Scope many-to-many, category/scope decoupling, and HRR bank by scope are gated; Gate B first audit NO-GO.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001982,
+          "score": 0.02818881,
+          "content": "Solving HRR bank saturation does not necessarily require scope: options include further bucketing within categories or accepting weak HRR signals with low weight in RRF.",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001375,
+          "score": 0.04838383,
+          "content": "HRR bank saturation solutions are not bound to scope.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002205,
+          "score": 0.04640521,
+          "content": "Category/scope decoupling and HRR bank by scope is gated on Gate B.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001583,
+          "score": 0.04505326,
+          "content": "后续agent容易把category过宽、HRR bank饱和和scope schema绑成一个包。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001402,
+          "score": 0.04427237,
+          "content": "Scope many-to-many, category/scope decoupling, and HRR bank by scope are gated; Gate B first audit NO-GO.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001225,
+          "score": 0.04329151,
+          "content": "`_rebuild_bank` does a full rebuild of the category bank on every add/update/remove.",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001375,
+        1001583,
+        1002205,
+        1001402,
+        1001982
+      ],
+      "top_3way_ids": [
+        1001375,
+        1002205,
+        1001583,
+        1001402,
+        1001225
+      ],
+      "top5_overlap": 0.8,
+      "top1_changed": false,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "category source_doc shard256",
+      "candidate_counts": {
+        "fts": 100,
+        "jaccard": 26,
+        "hrr": 100,
+        "union": 175
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001406,
+          "score": 0.02939472,
+          "content": "Priority on splitting by source_doc_id/doc group, category bucketing, or downgrading HRR from default search.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001312,
+          "score": 0.02901408,
+          "content": "retain_document delays category bank rebuilds during batch fact writes.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001376,
+          "score": 0.02899307,
+          "content": "Candidates include physical split by source_doc_id/doc group, category bucketing, or keeping HRR only for probe/reason.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001434,
+          "score": 0.02899307,
+          "content": "retain_document 在批量写入时延迟 category bank 重建，整批完成后每个 category 只重建一次。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001313,
+          "score": 0.02826683,
+          "content": "It rebuilds each changed category once after the document batch completes.",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001312,
+          "score": 0.04415681,
+          "content": "retain_document delays category bank rebuilds during batch fact writes.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001313,
+          "score": 0.04413065,
+          "content": "It rebuilds each changed category once after the document batch completes.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001434,
+          "score": 0.04306942,
+          "content": "retain_document 在批量写入时延迟 category bank 重建，整批完成后每个 category 只重建一次。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001376,
+          "score": 0.04214334,
+          "content": "Candidates include physical split by source_doc_id/doc group, category bucketing, or keeping HRR only for probe/reason.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001406,
+          "score": 0.04115261,
+          "content": "Priority on splitting by source_doc_id/doc group, category bucketing, or downgrading HRR from default search.",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001406,
+        1001312,
+        1001376,
+        1001434,
+        1001313
+      ],
+      "top_3way_ids": [
+        1001312,
+        1001313,
+        1001434,
+        1001376,
+        1001406
+      ],
+      "top5_overlap": 1.0,
+      "top1_changed": true,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "dirty fact candidates",
+      "candidate_counts": {
+        "fts": 100,
+        "jaccard": 93,
+        "hrr": 100,
+        "union": 170
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001535,
+          "score": 0.0319999,
+          "content": "当前稳定快照后仍有少量meta/dirty candidates需要人眼确认。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001474,
+          "score": 0.03198351,
+          "content": "最新快照识别出 6 条 meta candidates 和 dirty 候选事实，需要人工清洗和标记。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001536,
+          "score": 0.03099166,
+          "content": "偿还计划：复核当前快照dirty fact候选，确认后通过merged_into软删除。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001239,
+          "score": 0.03066137,
+          "content": "The generated report records current fact counts, document distribution, soft-delete counts, memory bank pressure, and candidate dirty facts without mutating the source DB.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001371,
+          "score": 0.02835519,
+          "content": "Cleanliness review involves checking meta/dirty candidates for soft-delete via merged_into.",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001536,
+          "score": 0.04506801,
+          "content": "偿还计划：复核当前快照dirty fact候选，确认后通过merged_into软删除。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001535,
+          "score": 0.04497939,
+          "content": "当前稳定快照后仍有少量meta/dirty candidates需要人眼确认。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001338,
+          "score": 0.04462627,
+          "content": "They pre-filter candidates by linked entities.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001371,
+          "score": 0.044219,
+          "content": "Cleanliness review involves checking meta/dirty candidates for soft-delete via merged_into.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001474,
+          "score": 0.04321295,
+          "content": "最新快照识别出 6 条 meta candidates 和 dirty 候选事实，需要人工清洗和标记。",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001535,
+        1001474,
+        1001536,
+        1001239,
+        1001371
+      ],
+      "top_3way_ids": [
+        1001536,
+        1001535,
+        1001338,
+        1001371,
+        1001474
+      ],
+      "top5_overlap": 0.8,
+      "top1_changed": true,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "Gate A Gate B scope",
+      "candidate_counts": {
+        "fts": 84,
+        "jaccard": 100,
+        "hrr": 100,
+        "union": 146
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001559,
+          "score": 0.03173564,
+          "content": "Scope Gate B首次审计判定为NO-GO。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001402,
+          "score": 0.03123952,
+          "content": "Scope many-to-many, category/scope decoupling, and HRR bank by scope are gated; Gate B first audit NO-GO.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001582,
+          "score": 0.03099166,
+          "content": "Scope Gate B的NO-GO是当前schema边界。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002204,
+          "score": 0.03046032,
+          "content": "Scope many-to-many (scopes/fact_scopes) is gated on Gate B.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002205,
+          "score": 0.02974469,
+          "content": "Category/scope decoupling and HRR bank by scope is gated on Gate B.",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1002204,
+          "score": 0.04684428,
+          "content": "Scope many-to-many (scopes/fact_scopes) is gated on Gate B.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001974,
+          "score": 0.04547794,
+          "content": "Scope implementation, if needed, should use many-to-many and be gated on Gate B.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001936,
+          "score": 0.04503615,
+          "content": "The scope schema is 5% complete, with only direction and no implementation, gated on Gate B.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001244,
+          "score": 0.04454483,
+          "content": "Read-only scope gate audit separates inserted rows, unique fact IDs, merge targets/events, extraction-meta candidates, Gate A sampling, and content-derived multi-label scope distribution without relying on source_doc_id.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002205,
+          "score": 0.0434354,
+          "content": "Category/scope decoupling and HRR bank by scope is gated on Gate B.",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001559,
+        1001402,
+        1001582,
+        1002204,
+        1002205
+      ],
+      "top_3way_ids": [
+        1002204,
+        1001974,
+        1001936,
+        1001244,
+        1002205
+      ],
+      "top5_overlap": 0.4,
+      "top1_changed": true,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "P2 graph edge veto",
+      "candidate_counts": {
+        "fts": 61,
+        "jaccard": 38,
+        "hrr": 100,
+        "union": 150
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001156,
+          "score": 0.03250361,
+          "content": "fact_edges 图边 + CTE 多跳（P2）被 veto 冻结。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001360,
+          "score": 0.03199989,
+          "content": "P2 graph edges were vetoed by real data.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001260,
+          "score": 0.03172763,
+          "content": "Decision record: P2 shared-entity graph edges vetoed after real-data measurement.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001186,
+          "score": 0.03126241,
+          "content": "P2 边当前 veto 冻结，不重启。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001388,
+          "score": 0.0307514,
+          "content": "P2 shared-entity graph edges are vetoed due to low entity fan-out and few shared fact pairs.",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001360,
+          "score": 0.04838383,
+          "content": "P2 graph edges were vetoed by real data.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001260,
+          "score": 0.04734357,
+          "content": "Decision record: P2 shared-entity graph edges vetoed after real-data measurement.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001388,
+          "score": 0.04661522,
+          "content": "P2 shared-entity graph edges are vetoed due to low entity fan-out and few shared fact pairs.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001156,
+          "score": 0.0461943,
+          "content": "fact_edges 图边 + CTE 多跳（P2）被 veto 冻结。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001186,
+          "score": 0.04617912,
+          "content": "P2 边当前 veto 冻结，不重启。",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001156,
+        1001360,
+        1001260,
+        1001186,
+        1001388
+      ],
+      "top_3way_ids": [
+        1001360,
+        1001260,
+        1001388,
+        1001156,
+        1001186
+      ],
+      "top5_overlap": 1.0,
+      "top1_changed": true,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "retain_document extraction",
+      "candidate_counts": {
+        "fts": 99,
+        "jaccard": 12,
+        "hrr": 100,
+        "union": 184
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001152,
+          "score": 0.03276787,
+          "content": "文档入口 retain_document 已实现。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001178,
+          "score": 0.03081703,
+          "content": "retain_document 输入侧闭环：先按 text_hash 去重落地原文，再提炼 fact。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001296,
+          "score": 0.03053266,
+          "content": "eval_retain_quality.py measures extraction granularity and token cost.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001245,
+          "score": 0.02835657,
+          "content": "Retain extraction now reports per-chunk provider failures instead of silently returning zero facts.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001312,
+          "score": 0.02818878,
+          "content": "retain_document delays category bank rebuilds during batch fact writes.",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001152,
+          "score": 0.04838381,
+          "content": "文档入口 retain_document 已实现。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001296,
+          "score": 0.04665235,
+          "content": "eval_retain_quality.py measures extraction granularity and token cost.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001178,
+          "score": 0.04573375,
+          "content": "retain_document 输入侧闭环：先按 text_hash 去重落地原文，再提炼 fact。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001312,
+          "score": 0.04333151,
+          "content": "retain_document delays category bank rebuilds during batch fact writes.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001245,
+          "score": 0.04305393,
+          "content": "Retain extraction now reports per-chunk provider failures instead of silently returning zero facts.",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001152,
+        1001178,
+        1001296,
+        1001245,
+        1001312
+      ],
+      "top_3way_ids": [
+        1001152,
+        1001296,
+        1001178,
+        1001312,
+        1001245
+      ],
+      "top5_overlap": 1.0,
+      "top1_changed": false,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "LLM extractor rejects chatter",
+      "candidate_counts": {
+        "fts": 62,
+        "jaccard": 46,
+        "hrr": 100,
+        "union": 136
+      },
+      "top_2way": [
+        {
+          "fact_id": 28,
+          "score": 0.03120445,
+          "content": "holographic memory 新增文档保留流程：retain_document 存储原始文本，按 SHA256 去重，通过 FactExtractor 协议提取原子 facts。支持 pluggable extractor：_LocalFallbackExtractor（句子拆分，标记 fallback）和 _LLMExtractor（注入 model_call）。长文档按段落/句边界分块，默认 max_chunk_tokens=6000。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001190,
+          "score": 0.02965312,
+          "content": "LLM 只用于文档提炼、语义合并/收敛、跨话题串联。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001179,
+          "score": 0.02901407,
+          "content": "fallback 提取器只保证不崩，不替代 LLM 粒度。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001189,
+          "score": 0.02826683,
+          "content": "所有 LLM 调用必须是一次性 API，不能维持长期循环或后台推理。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001191,
+          "score": 0.02812221,
+          "content": "原子事实提炼红线：LLM 提取器必须执行事实/废话判定边界。",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 3,
+          "score": 0.04371031,
+          "content": "Platform uses three vertical LLMs: general LLM, investment attraction vertical LLM, report generation LLM. Data sources include Haier enterprise database (30M+), Jinan policy/land/fund database, industry dynamics, government cloud computing power.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001286,
+          "score": 0.0416803,
+          "content": "MemoryStore.retain_document extracts atomic facts via a pluggable extractor.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001179,
+          "score": 0.04150683,
+          "content": "fallback 提取器只保证不崩，不替代 LLM 粒度。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001417,
+          "score": 0.04110171,
+          "content": "Deferred to extractor profile/lifecycle; schema not written ahead.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001190,
+          "score": 0.04101017,
+          "content": "LLM 只用于文档提炼、语义合并/收敛、跨话题串联。",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        28,
+        1001190,
+        1001179,
+        1001189,
+        1001191
+      ],
+      "top_3way_ids": [
+        3,
+        1001286,
+        1001179,
+        1001417,
+        1001190
+      ],
+      "top5_overlap": 0.4,
+      "top1_changed": true,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "retrieval_count side effect",
+      "candidate_counts": {
+        "fts": 43,
+        "jaccard": 9,
+        "hrr": 100,
+        "union": 134
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001221,
+          "score": 0.03276787,
+          "content": "`search_facts` has the side effect of incrementing `retrieval_count += 1`.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001704,
+          "score": 0.03147978,
+          "content": "已有 retrieval_count 和 helpful_count 计数。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001633,
+          "score": 0.03123953,
+          "content": "最后更新 retrieval_count / last_accessed_at。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001795,
+          "score": 0.03103643,
+          "content": "retrieval_count 累加。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001710,
+          "score": 0.03099166,
+          "content": "search_facts 有副作用 retrieval_count += 1。",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001221,
+          "score": 0.04915181,
+          "content": "`search_facts` has the side effect of incrementing `retrieval_count += 1`.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001795,
+          "score": 0.04715612,
+          "content": "retrieval_count 累加。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001633,
+          "score": 0.04710335,
+          "content": "最后更新 retrieval_count / last_accessed_at。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001704,
+          "score": 0.04709573,
+          "content": "已有 retrieval_count 和 helpful_count 计数。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001710,
+          "score": 0.0461344,
+          "content": "search_facts 有副作用 retrieval_count += 1。",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001221,
+        1001704,
+        1001633,
+        1001795,
+        1001710
+      ],
+      "top_3way_ids": [
+        1001221,
+        1001795,
+        1001633,
+        1001704,
+        1001710
+      ],
+      "top5_overlap": 1.0,
+      "top1_changed": false,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "RRF FTS Jaccard HRR",
+      "candidate_counts": {
+        "fts": 100,
+        "jaccard": 100,
+        "hrr": 100,
+        "union": 168
+      },
+      "top_2way": [
+        {
+          "fact_id": 1002155,
+          "score": 0.03201575,
+          "content": "RRF融合三路：FTS5/Jaccard/HRR，只用名次不用原始分。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001609,
+          "score": 0.03198352,
+          "content": "RRF 融合 FTS5 / Jaccard / HRR 三路由排名位置。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001384,
+          "score": 0.03039712,
+          "content": "Default search may be reduced to FTS5 + Jaccard two-way RRF; HRR kept for probe/related/reason.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001700,
+          "score": 0.03034819,
+          "content": "已有 FTS5 全文、Jaccard、HRR 三路检索。",
+          "category": "project"
+        },
+        {
+          "fact_id": 25,
+          "score": 0.03027978,
+          "content": "holographic memory 插件 2026-06-21 更新：HRR 向量相似度从 RRF 融合中移除，基于 343-fact 语料 A/B 测试结论——HRR 对未匹配查询是噪音，对已匹配查询冗余。搜索降级为 2-way FTS5 + Jaccard RRF 融合。同时移除 hrr_weight 配置项。",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1002170,
+          "score": 0.04319802,
+          "content": "三条硬约束：A.FTS5粗筛+Jaccard精判，不用HRR（entities缺席+同类信号冗余）。语义近重复故意留给P1。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002155,
+          "score": 0.0428844,
+          "content": "RRF融合三路：FTS5/Jaccard/HRR，只用名次不用原始分。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001274,
+          "score": 0.04268375,
+          "content": "Graceful fallback to FTS5 plus Jaccard RRF when numpy is unavailable.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001384,
+          "score": 0.04188471,
+          "content": "Default search may be reduced to FTS5 + Jaccard two-way RRF; HRR kept for probe/related/reason.",
+          "category": "project"
+        },
+        {
+          "fact_id": 25,
+          "score": 0.03936992,
+          "content": "holographic memory 插件 2026-06-21 更新：HRR 向量相似度从 RRF 融合中移除，基于 343-fact 语料 A/B 测试结论——HRR 对未匹配查询是噪音，对已匹配查询冗余。搜索降级为 2-way FTS5 + Jaccard RRF 融合。同时移除 hrr_weight 配置项。",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1002155,
+        1001609,
+        1001384,
+        1001700,
+        25
+      ],
+      "top_3way_ids": [
+        1002170,
+        1002155,
+        1001274,
+        1001384,
+        25
+      ],
+      "top5_overlap": 0.6,
+      "top1_changed": true,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "无常驻进程",
+      "candidate_counts": {
+        "fts": 11,
+        "jaccard": 100,
+        "hrr": 100,
+        "union": 157
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001593,
+          "score": 0.03250364,
+          "content": "该插件无常驻进程和外部向量服务。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001119,
+          "score": 0.03250361,
+          "content": "核心红线之一：无常驻进程、无外部依赖。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1000080,
+          "score": 0.03119546,
+          "content": "Workspace项目没有常驻进程。",
+          "category": "personal"
+        },
+        {
+          "fact_id": 1001683,
+          "score": 0.03100657,
+          "content": "系统里不留任何常驻进程。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001827,
+          "score": 0.03034819,
+          "content": "anacron和OS cron都是独立于hermes的常驻调度组件，违反用户不留常驻进程和无外部依赖的要求。",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001119,
+          "score": 0.04888755,
+          "content": "核心红线之一：无常驻进程、无外部依赖。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001593,
+          "score": 0.04787935,
+          "content": "该插件无常驻进程和外部向量服务。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1000080,
+          "score": 0.04729634,
+          "content": "Workspace项目没有常驻进程。",
+          "category": "personal"
+        },
+        {
+          "fact_id": 1001683,
+          "score": 0.04687039,
+          "content": "系统里不留任何常驻进程。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001825,
+          "score": 0.04523006,
+          "content": "进程内定时器被选为实现方案，以规避OS cron/anacron的常驻进程和外部依赖。",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001593,
+        1001119,
+        1000080,
+        1001683,
+        1001827
+      ],
+      "top_3way_ids": [
+        1001119,
+        1001593,
+        1000080,
+        1001683,
+        1001825
+      ],
+      "top5_overlap": 0.8,
+      "top1_changed": true,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "关机即文件",
+      "candidate_counts": {
+        "fts": 4,
+        "jaccard": 100,
+        "hrr": 100,
+        "union": 153
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001686,
+          "score": 0.03250364,
+          "content": "Holo 命根子是「关机即文件、开机即用，无启动序列」。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002061,
+          "score": 0.0322478,
+          "content": "关机即文件、开机即用、无启动序列。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002008,
+          "score": 0.03198353,
+          "content": "本补丁是关机即文件的延伸——库没有持有者，它就是躺在那的文件，谁需要谁开。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001685,
+          "score": 0.03123191,
+          "content": "Hindsight 架构假设机器 24h 活着，关机即废、启动即工程。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002064,
+          "score": 0.01537572,
+          "content": "机器关了就是一个.db文件，开机直接用，无启动序列。",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1002061,
+          "score": 0.04863176,
+          "content": "关机即文件、开机即用、无启动序列。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001686,
+          "score": 0.04862334,
+          "content": "Holo 命根子是「关机即文件、开机即用，无启动序列」。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002008,
+          "score": 0.04759949,
+          "content": "本补丁是关机即文件的延伸——库没有持有者，它就是躺在那的文件，谁需要谁开。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001685,
+          "score": 0.04709573,
+          "content": "Hindsight 架构假设机器 24h 活着，关机即废、启动即工程。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002064,
+          "score": 0.02965317,
+          "content": "机器关了就是一个.db文件，开机直接用，无启动序列。",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001686,
+        1002061,
+        1002008,
+        1001685,
+        1002064
+      ],
+      "top_3way_ids": [
+        1002061,
+        1001686,
+        1002008,
+        1001685,
+        1002064
+      ],
+      "top5_overlap": 1.0,
+      "top1_changed": true,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "软删除 merged_into",
+      "candidate_counts": {
+        "fts": 37,
+        "jaccard": 43,
+        "hrr": 100,
+        "union": 142
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001154,
+          "score": 0.03250361,
+          "content": "facts.merged_into 软删除和语义合并已实现（P1-2）。",
+          "category": "project"
+        },
+        {
+          "fact_id": 26,
+          "score": 0.03170075,
+          "content": "holographic memory 插件 consolidation 机制改为软删除：consolidate_facts 执行 UPDATE 设置 merged_into 指向合并后的 fact ID，而非物理 DELETE。所有 9 条读取路径（search/list/probe/related/reason/contradict/FTS5 JOIN 等）均过滤 merged_into IS NULL。支持 reactivation：相同内容再次插入时自动清除 merged_into。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001536,
+          "score": 0.03100656,
+          "content": "偿还计划：复核当前快照dirty fact候选，确认后通过merged_into软删除。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002098,
+          "score": 0.03060407,
+          "content": "软删除只走merged_into指向dummy 999999，绝不物理DELETE。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002029,
+          "score": 0.03031333,
+          "content": "两种坏情况：没有任何实例自认为该跑GC→GC永不触发；每个实例都触发→并发改同一批fact的merged_into和trust→软删除写冲突。",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001154,
+          "score": 0.04787931,
+          "content": "facts.merged_into 软删除和语义合并已实现（P1-2）。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002098,
+          "score": 0.04698804,
+          "content": "软删除只走merged_into指向dummy 999999，绝不物理DELETE。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001536,
+          "score": 0.04687039,
+          "content": "偿还计划：复核当前快照dirty fact候选，确认后通过merged_into软删除。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002029,
+          "score": 0.04523007,
+          "content": "两种坏情况：没有任何实例自认为该跑GC→GC永不触发；每个实例都触发→并发改同一批fact的merged_into和trust→软删除写冲突。",
+          "category": "project"
+        },
+        {
+          "fact_id": 26,
+          "score": 0.04465617,
+          "content": "holographic memory 插件 consolidation 机制改为软删除：consolidate_facts 执行 UPDATE 设置 merged_into 指向合并后的 fact ID，而非物理 DELETE。所有 9 条读取路径（search/list/probe/related/reason/contradict/FTS5 JOIN 等）均过滤 merged_into IS NULL。支持 reactivation：相同内容再次插入时自动清除 merged_into。",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001154,
+        26,
+        1001536,
+        1002098,
+        1002029
+      ],
+      "top_3way_ids": [
+        1001154,
+        1002098,
+        1001536,
+        1002029,
+        26
+      ],
+      "top5_overlap": 1.0,
+      "top1_changed": false,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "迁移前备份",
+      "candidate_counts": {
+        "fts": 2,
+        "jaccard": 100,
+        "hrr": 100,
+        "union": 155
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001446,
+          "score": 0.03250363,
+          "content": "生产快照读取时仍需按迁移前/后具体状态注明。",
+          "category": "project"
+        },
+        {
+          "fact_id": 29,
+          "score": 0.03244336,
+          "content": "holographic memory Schema 迁移框架：schema_version 表 + 自动基线检测 + 迁移前 .db.bak.v{n} 备份（WAL checkpoint 后复制）。外键在迁移期间禁用，完成后重新启用并检查。当前版本 v4：新增 documents 表、text_hash UNIQUE 索引、facts.source_doc_id 外键（ON DELETE SET NULL）、merged_into 列。",
+          "category": "project"
+        },
+        {
+          "fact_id": 203,
+          "score": 0.01583905,
+          "content": "万永健本周需完成J105环境迁移至政务网机器（投诉局项目前置）。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001164,
+          "score": 0.01561594,
+          "content": "每次升级前在代码里硬做备份：PRAGMA wal_checkpoint(FULL) 后再复制 .db.bak.v{current}。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001479,
+          "score": 0.0153757,
+          "content": "在解冻前，不编写任何 Scope 相关的 schema 迁移或处理代码。",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001446,
+          "score": 0.04888758,
+          "content": "生产快照读取时仍需按迁移前/后具体状态注明。",
+          "category": "project"
+        },
+        {
+          "fact_id": 29,
+          "score": 0.04779054,
+          "content": "holographic memory Schema 迁移框架：schema_version 表 + 自动基线检测 + 迁移前 .db.bak.v{n} 备份（WAL checkpoint 后复制）。外键在迁移期间禁用，完成后重新启用并检查。当前版本 v4：新增 documents 表、text_hash UNIQUE 索引、facts.source_doc_id 外键（ON DELETE SET NULL）、merged_into 列。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001862,
+          "score": 0.03005948,
+          "content": "schema变更前需备份.db文件，作为不可再生数据的底线。",
+          "category": "project"
+        },
+        {
+          "fact_id": 154,
+          "score": 0.0300533,
+          "content": "需将J105环境迁移至政务网机器。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002097,
+          "score": 0.02961412,
+          "content": "任何schema变更走真migration（ALTER/建新表/数据迁移），绝不DROP+CREATE，动手前先backup .db。",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001446,
+        29,
+        203,
+        1001164,
+        1001479
+      ],
+      "top_3way_ids": [
+        1001446,
+        29,
+        1001862,
+        154,
+        1002097
+      ],
+      "top5_overlap": 0.4,
+      "top1_changed": false,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "事实废话判定边界",
+      "candidate_counts": {
+        "fts": 2,
+        "jaccard": 100,
+        "hrr": 100,
+        "union": 157
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001191,
+          "score": 0.03276787,
+          "content": "原子事实提炼红线：LLM 提取器必须执行事实/废话判定边界。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001490,
+          "score": 0.03223938,
+          "content": "评估器主客观判定边界的抖动为 ±3.8%（b 档），项目接受此抖动。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001537,
+          "score": 0.01586382,
+          "content": "根治方案：继续收紧提取Prompt的事实/废话边界，强制拒收思考过程、自言自语、元指令陈述、聊天状态和纯劝慰隐喻。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001481,
+          "score": 0.01561595,
+          "content": "评估器在边缘指令和主客观事实判定上系统性不稳，例如 ID 40 和 ID 1000023。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001501,
+          "score": 0.0153757,
+          "content": "LLM 提取 Prompt 必须做客观的\"事实/对话噪音\"判定，拒收纯互动、聊天状态描述、劝慰和隐喻表述。",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001191,
+          "score": 0.04915181,
+          "content": "原子事实提炼红线：LLM 提取器必须执行事实/废话判定边界。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001490,
+          "score": 0.04835907,
+          "content": "评估器主客观判定边界的抖动为 ±3.8%（b 档），项目接受此抖动。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001537,
+          "score": 0.03172765,
+          "content": "根治方案：继续收紧提取Prompt的事实/废话边界，强制拒收思考过程、自言自语、元指令陈述、聊天状态和纯劝慰隐喻。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001485,
+          "score": 0.02918172,
+          "content": "事实/对话噪音仍是主风险：提取器要拒收问安、睡觉提醒、聊天节奏、临时隐喻和心理归因。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002126,
+          "score": 0.02883346,
+          "content": "消除边界>增加判断，删除比新增更让人舒服。",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001191,
+        1001490,
+        1001537,
+        1001481,
+        1001501
+      ],
+      "top_3way_ids": [
+        1001191,
+        1001490,
+        1001537,
+        1001485,
+        1002126
+      ],
+      "top5_overlap": 0.6,
+      "top1_changed": false,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "项目元文档 原子提炼",
+      "candidate_counts": {
+        "fts": 0,
+        "jaccard": 100,
+        "hrr": 100,
+        "union": 140
+      },
+      "top_2way": [
+        {
+          "fact_id": 28,
+          "score": 0.01635356,
+          "content": "holographic memory 新增文档保留流程：retain_document 存储原始文本，按 SHA256 去重，通过 FactExtractor 协议提取原子 facts。支持 pluggable extractor：_LocalFallbackExtractor（句子拆分，标记 fallback）和 _LLMExtractor（注入 model_call）。长文档按段落/句边界分块，默认 max_chunk_tokens=6000。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001663,
+          "score": 0.01611969,
+          "content": "文章入口将长文档提炼为多条 fact 并保存原文。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001190,
+          "score": 0.01586381,
+          "content": "LLM 只用于文档提炼、语义合并/收敛、跨话题串联。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001191,
+          "score": 0.01561594,
+          "content": "原子事实提炼红线：LLM 提取器必须执行事实/废话判定边界。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001469,
+          "score": 0.0153757,
+          "content": "增加了项目文档 retain 脚本 tests/scripts/run_retain_project_docs.py。",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001663,
+          "score": 0.03223939,
+          "content": "文章入口将长文档提炼为多条 fact 并保存原文。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001469,
+          "score": 0.03123952,
+          "content": "增加了项目文档 retain 脚本 tests/scripts/run_retain_project_docs.py。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001763,
+          "score": 0.03010032,
+          "content": "文章入口将长文档提炼为多条 fact。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001776,
+          "score": 0.02864843,
+          "content": "两条新功能合起来：扔文章→提炼成fact+留原文→几天后模糊一问→RRF捞回→要细节调原文。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001472,
+          "score": 0.02846835,
+          "content": "项目文档 retain 脚本会先备份 live DB 再运行。",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        28,
+        1001663,
+        1001190,
+        1001191,
+        1001469
+      ],
+      "top_3way_ids": [
+        1001663,
+        1001469,
+        1001763,
+        1001776,
+        1001472
+      ],
+      "top5_overlap": 0.4,
+      "top1_changed": true,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "legacy Hindsight 长 fact",
+      "candidate_counts": {
+        "fts": 100,
+        "jaccard": 100,
+        "hrr": 100,
+        "union": 201
+      },
+      "top_2way": [
+        {
+          "fact_id": 1001532,
+          "score": 0.0319999,
+          "content": "偿还计划：不修旧账，只保护新账，后续查询层优先读fact_provenance，无行时返回legacy unknown。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1002083,
+          "score": 0.03126245,
+          "content": "Hindsight给参数和判据（它拿百万级fact调出来的，可信），不给架构（单用户本地库养不起）。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001912,
+          "score": 0.02965316,
+          "content": "When the query side encounters a legacy fact without a provenance row, it should project it as `legacy_unknown` at read time.",
+          "category": "project"
+        },
+        {
+          "fact_id": 24,
+          "score": 0.02658227,
+          "content": "holographic memory 是主动查询机制（非自动注入），与 hindsight 的 pre_llm_call 自动召回不同。使用分层策略：高频/关键偏好放 MEMORY（自动注入），档案/项目细节放 holographic（按需 fact_store search）。hindsight 已弃用。",
+          "category": "general"
+        },
+        {
+          "fact_id": 1001663,
+          "score": 0.02478495,
+          "content": "文章入口将长文档提炼为多条 fact 并保存原文。",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001912,
+          "score": 0.04577286,
+          "content": "When the query side encounters a legacy fact without a provenance row, it should project it as `legacy_unknown` at read time.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001206,
+          "score": 0.03542224,
+          "content": "Lock fact IDs, not seed.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001663,
+          "score": 0.03508826,
+          "content": "文章入口将长文档提炼为多条 fact 并保存原文。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001366,
+          "score": 0.03449264,
+          "content": "source_doc_id is a legacy single-value attribution, not full provenance.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001249,
+          "score": 0.03382486,
+          "content": "Legacy facts are not backfilled because historical merge direction was flattened by the 999999 soft-delete marker.",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1001532,
+        1002083,
+        1001912,
+        24,
+        1001663
+      ],
+      "top_3way_ids": [
+        1001912,
+        1001206,
+        1001663,
+        1001366,
+        1001249
+      ],
+      "top5_overlap": 0.4,
+      "top1_changed": true,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    },
+    {
+      "query": "DeepSeek retain routing",
+      "candidate_counts": {
+        "fts": 61,
+        "jaccard": 42,
+        "hrr": 100,
+        "union": 128
+      },
+      "top_2way": [
+        {
+          "fact_id": 1000902,
+          "score": 0.03121189,
+          "content": "DeepSeek的依据是中科院的一份报告。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1000736,
+          "score": 0.03120425,
+          "content": "该系统模型不是DeepSeek、元宝或豆包。",
+          "category": "project"
+        },
+        {
+          "fact_id": 88,
+          "score": 0.03095814,
+          "content": "方向调整必须改成对话式交互类似DeepSeek或豆包。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001114,
+          "score": 0.02961407,
+          "content": "eval 脚本需要 DEEPSEEK_API_KEY，结果输出到 reports/。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001315,
+          "score": 0.02945204,
+          "content": "It remains pinned to DeepSeek (deepseek-v4-flash by default).",
+          "category": "project"
+        }
+      ],
+      "top_3way": [
+        {
+          "fact_id": 1001315,
+          "score": 0.04531585,
+          "content": "It remains pinned to DeepSeek (deepseek-v4-flash by default).",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001114,
+          "score": 0.04369041,
+          "content": "eval 脚本需要 DEEPSEEK_API_KEY，结果输出到 reports/。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1000902,
+          "score": 0.04309923,
+          "content": "DeepSeek的依据是中科院的一份报告。",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001317,
+          "score": 0.04291567,
+          "content": "Direct DeepSeek environment variables remain a standalone-script fallback.",
+          "category": "project"
+        },
+        {
+          "fact_id": 1001645,
+          "score": 0.04203911,
+          "content": "真实 LLM eval 命令为 python batch_retain_eval.py --llm deepseek 和 python corpus_audit.py --llm deepseek。",
+          "category": "project"
+        }
+      ],
+      "top_2way_ids": [
+        1000902,
+        1000736,
+        88,
+        1001114,
+        1001315
+      ],
+      "top_3way_ids": [
+        1001315,
+        1001114,
+        1000902,
+        1001317,
+        1001645
+      ],
+      "top5_overlap": 0.6,
+      "top1_changed": true,
+      "hrr_only_top3_count": 0,
+      "hrr_only_top3_ids": []
+    }
+  ]
+}

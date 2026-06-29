@@ -162,7 +162,7 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 | HRR 向量（1024d，确定性 SHA-256 atoms）               | ✅ 已有           | `holographic.py`               |
 | trust 非对称反馈（+0.05 / -0.10）                     | ✅ 已有           | `store.py`                     |
 | `probe` / `related` / `reason` / `contradict` | ✅ 已有           | `retrieval.py`                 |
-| RRF 三路融合（RQ）                                    | ✅ 已实现         | `retrieval.py`                 |
+| RRF 两路融合（默认 search: FTS5 + Jaccard）            | ✅ 已实现         | `retrieval.py`                 |
 | entity 归一化（P1-1）                                 | ✅ 已实现         | `entities.py` / `store.py`     |
 | 近重复检测（P0）                                      | ✅ 已实现         | `store.py`                     |
 | migration 框架 +`schema_version`                    | ✅ 已实现 (v1-v10) | `store_migrations.py`          |
@@ -201,9 +201,9 @@ C:/Users/sdses/AppData/Local/hermes/hermes-agent/plugins/memory/holographic/   #
 - **FTS / grep 不是低级兜底，而是个人本地记忆的主路线**：随着模型能力和上下文增强，记忆层应优先提供可审计的候选文本、事实账本和 provenance，而不是急着引入不可解释的 embedding 服务。
 - **embedding 缺失是设计取舍，不是待修 bug**：牺牲一部分不共词语义召回，换取本地、轻量、无常驻、可审计。若召回不足，先做 query reformulation（让 LLM 改写成关键词/实体/时间/项目名）和候选控制，不要先上向量库。
 - **P1-4 不是语义搜索补丁**：跨话题串联只做 induction（跨领域结构相似 observation），不能被拿来补 embedding 缺失后的泛语义召回。
-- 三路检索（FTS5 / Jaccard / HRR）**禁止直接拿原始分线性相加**。
+- 默认 search 两路检索（FTS5 / Jaccard）**禁止直接拿原始分线性相加**。
 - 必须改用 **RRF（Reciprocal Rank Fusion）**：`score = Σ 1/(60 + rank_i)`，k=60。
-- **HRR 那路是假设，不是事实**：全量数据上来后必须实测三路 RRF 与两路（FTS5+Jaccard）RRF 的排序差异。若在真实语料上 HRR 两两相似度塌在噪声区间（如 366 条云提取事实 max≈0.089、p99≈0.052），则 HRR 给出的“排名”就是噪声，会往共识分里掺沙子。届时应将 HRR 在 RRF 中降权或踢出，而不是继续调 HRR 阈值。
+- **HRR 默认 search 路已踢出**：2026-06-29 的固定查询 A/B（`reports/rrf_ab_audit.md`）显示 3-way vs 2-way median top5 overlap 0.8、20 条里 12 条 top1 改变、且 `hrr_only_top3_query_count=0`。结论：HRR 不给默认 search 带来独占召回，只会重排 FTS/Jaccard 已召回结果；默认 search 保持 FTS5+Jaccard 两路 RRF。HRR 保留给 `probe` / `related` / `reason` 和显式审计。
 - trust / recency 只能做**乘法 boost**，不能做加法；boost 中心 1.0、限幅 ±10% 左右。
 
 ### 4.4 库卫生（P0/P1/P2）红线
