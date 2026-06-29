@@ -441,7 +441,10 @@ class HolographicMemoryProvider(MemoryProvider):
             elif action == "consolidate":
                 model_call = _resolve_model_call()
                 if not model_call:
-                    return tool_error("DEEPSEEK_API_KEY or OPENAI_API_KEY not found in environment. Consolidation requires an LLM.")
+                    # Extraction/consolidation is intentionally pinned to DeepSeek
+                    # (see _resolve_model_call). Don't advertise OPENAI_API_KEY here:
+                    # it is never read, so promising it sends users down a dead end.
+                    return tool_error("No DeepSeek LLM available. Set DEEPSEEK_API_KEY (or run inside Hermes with a configured DeepSeek provider). Consolidation requires an LLM.")
                 report = store.consolidate_facts(
                     model_call=model_call,
                     category=args.get("category"),

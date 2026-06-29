@@ -10,6 +10,8 @@
 3. 改代码前按需读 [ROADMAP.md](ROADMAP.md)、[TECH_DEBT.md](TECH_DEBT.md)、[SESSION.md](SESSION.md)。
 4. 需要历史方案时读 [docs/achieve/holo-改造方案.md](docs/achieve/holo-改造方案.md)，它是归档设计稿，不是当前状态来源。
 
+> **提新需求/新功能前**：先过 [ROADMAP.md](ROADMAP.md) 的「防重提清单」，确认你没在重提早被 veto/冻结的东西（P2 图边、单值/多对多 scope、embedding 语义召回、常驻 worker/cron）。重了就停；真有新证据再按解冻条件重开。
+
 ## 快速开始
 
 ```bash
