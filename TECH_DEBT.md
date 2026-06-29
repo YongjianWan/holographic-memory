@@ -20,7 +20,9 @@ v10 已经引入 `fact_provenance`，新发生的 document retain / merge 会保
 - **当前影响**：旧 active facts 可能没有 provenance 行；查询侧必须把这种
   空行状态读时投影为 `legacy_unknown`，不能存占位或把 `source_doc_id` 当完整来源。
 - **偿还计划**：不修旧账，只保护新账。后续查询/报告层统一优先读
-  `fact_provenance`，无行时显式返回 legacy unknown。
+  `fact_provenance`，无行时显式返回 legacy unknown。当前已补
+  `tests/scripts/run_provenance_audit.py` 只读报告面，用来持续核对 known /
+  legacy_unknown 覆盖率和 merge 多来源样本。
 
 ### LLM extraction meta 混入 facts
 

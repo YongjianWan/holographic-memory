@@ -43,6 +43,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as atomic facts; this is tracked as a legacy granularity debt rather than
   dirty data. The dirty candidate report now records `45 keep / 4 dirty / 0
   pending`. No additional soft-delete/write-to-live-DB action was needed.
+- **Provenance audit report**: added `tests/scripts/run_provenance_audit.py`, a
+  read-only SQLite-backup based report for `fact_provenance` coverage. The
+  current live snapshot writes `reports/provenance_audit.md` / `.json` and
+  shows `2195 active / 1162 known provenance / 1033 legacy_unknown`, with 2
+  multi-document active facts proving merge provenance is visible without
+  treating `source_doc_id` as complete provenance.
 - **Decision record**: retrieval remains grep/FTS/Jaccard-first. Missing
   embedding-based semantic recall is an accepted local/no-daemon tradeoff, not
   current technical debt; future recall improvements should prefer query

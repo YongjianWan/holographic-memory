@@ -1,0 +1,239 @@
+{
+  "generated_at": "2026-06-29T15:33:18",
+  "source_db": "C:\\Users\\sdses\\AppData\\Local\\hermes\\memory_store.db",
+  "snapshot_db": "reports\\snapshots\\memory_store_provenance_audit_20260629_153318.db",
+  "read_only": true,
+  "integrity_check": "ok",
+  "foreign_key_violations": [],
+  "facts_total": 4347,
+  "facts_active": 2195,
+  "facts_soft_deleted": 2152,
+  "documents_total": 20,
+  "has_provenance_table": true,
+  "coverage": {
+    "active_known": 1162,
+    "active_legacy_unknown": 1033,
+    "known_pct": 52.94,
+    "legacy_unknown_pct": 47.06
+  },
+  "provenance_rows_total": 1169,
+  "provenance_rows_for_active": 1165,
+  "provenance_by_relation": {
+    "origin": 1166,
+    "merge": 3
+  },
+  "active_multi_doc_facts": 2,
+  "source_doc_mismatch_sample_count": 2,
+  "active_by_category": [
+    {
+      "category": "project",
+      "active_facts": 2082,
+      "known_facts": 1162,
+      "legacy_unknown": 920,
+      "known_pct": 55.81,
+      "provenance_rows": 1165
+    },
+    {
+      "category": "personal",
+      "active_facts": 110,
+      "known_facts": 0,
+      "legacy_unknown": 110,
+      "known_pct": 0.0,
+      "provenance_rows": 0
+    },
+    {
+      "category": "user_pref",
+      "active_facts": 5,
+      "known_facts": 0,
+      "legacy_unknown": 5,
+      "known_pct": 0.0,
+      "provenance_rows": 0
+    },
+    {
+      "category": "general",
+      "active_facts": 1,
+      "known_facts": 0,
+      "legacy_unknown": 1,
+      "known_pct": 0.0,
+      "provenance_rows": 0
+    }
+  ],
+  "documents": [
+    {
+      "doc_id": 21,
+      "source": "docs\\achieve\\holo-改造方案.md",
+      "provenance_rows": 247,
+      "distinct_facts": 247,
+      "active_facts": 247
+    },
+    {
+      "doc_id": 25,
+      "source": "docs\\宪法.md",
+      "provenance_rows": 209,
+      "distinct_facts": 209,
+      "active_facts": 209
+    },
+    {
+      "doc_id": 15,
+      "source": "AGENTS.md",
+      "provenance_rows": 130,
+      "distinct_facts": 130,
+      "active_facts": 130
+    },
+    {
+      "doc_id": 16,
+      "source": "CHANGELOG.md",
+      "provenance_rows": 117,
+      "distinct_facts": 117,
+      "active_facts": 117
+    },
+    {
+      "doc_id": 18,
+      "source": "SESSION.md",
+      "provenance_rows": 98,
+      "distinct_facts": 98,
+      "active_facts": 96
+    },
+    {
+      "doc_id": 22,
+      "source": "docs\\achieve\\session_2026-06-24_legacy_status.md",
+      "provenance_rows": 94,
+      "distinct_facts": 94,
+      "active_facts": 92
+    },
+    {
+      "doc_id": 17,
+      "source": "ROADMAP.md",
+      "provenance_rows": 78,
+      "distinct_facts": 77,
+      "active_facts": 77
+    },
+    {
+      "doc_id": 20,
+      "source": "docs\\achieve\\CODE_SUMMARY.md",
+      "provenance_rows": 71,
+      "distinct_facts": 71,
+      "active_facts": 71
+    },
+    {
+      "doc_id": 19,
+      "source": "TECH_DEBT.md",
+      "provenance_rows": 66,
+      "distinct_facts": 66,
+      "active_facts": 66
+    },
+    {
+      "doc_id": 23,
+      "source": "docs\\achieve\\并发补丁_多agent共享库.md",
+      "provenance_rows": 45,
+      "distinct_facts": 45,
+      "active_facts": 45
+    },
+    {
+      "doc_id": 24,
+      "source": "docs\\README.md",
+      "provenance_rows": 14,
+      "distinct_facts": 14,
+      "active_facts": 14
+    },
+    {
+      "doc_id": 1,
+      "source": "C:\\Users\\sdses\\Desktop\\现状（部分）.txt",
+      "provenance_rows": 0,
+      "distinct_facts": 0,
+      "active_facts": 0
+    },
+    {
+      "doc_id": 2,
+      "source": "C:\\Users\\sdses\\Desktop\\梁局汇报PPT-实际演示版.md",
+      "provenance_rows": 0,
+      "distinct_facts": 0,
+      "active_facts": 0
+    },
+    {
+      "doc_id": 3,
+      "source": "C:\\Users\\sdses\\Desktop\\今日.md",
+      "provenance_rows": 0,
+      "distinct_facts": 0,
+      "active_facts": 0
+    },
+    {
+      "doc_id": 4,
+      "source": "C:\\Users\\sdses\\Desktop\\AI智能检索与公文写作系统_需求文档.md",
+      "provenance_rows": 0,
+      "distinct_facts": 0,
+      "active_facts": 0
+    },
+    {
+      "doc_id": 5,
+      "source": "C:\\Users\\sdses\\Desktop\\ppt修改.txt",
+      "provenance_rows": 0,
+      "distinct_facts": 0,
+      "active_facts": 0
+    },
+    {
+      "doc_id": 6,
+      "source": "C:\\Users\\sdses\\Desktop\\招商会议.txt",
+      "provenance_rows": 0,
+      "distinct_facts": 0,
+      "active_facts": 0
+    },
+    {
+      "doc_id": 7,
+      "source": "C:\\Users\\sdses\\Desktop\\土地数据.txt",
+      "provenance_rows": 0,
+      "distinct_facts": 0,
+      "active_facts": 0
+    },
+    {
+      "doc_id": 8,
+      "source": "C:\\Users\\sdses\\Desktop\\招商2.txt",
+      "provenance_rows": 0,
+      "distinct_facts": 0,
+      "active_facts": 0
+    },
+    {
+      "doc_id": 9,
+      "source": "C:\\Users\\sdses\\Desktop\\工作心理问题.txt",
+      "provenance_rows": 0,
+      "distinct_facts": 0,
+      "active_facts": 0
+    }
+  ],
+  "multi_doc_fact_samples": [
+    {
+      "fact_id": 1001112,
+      "source_doc_id": 15,
+      "doc_count": 2,
+      "sources": "AGENTS.md,docs\\achieve\\CODE_SUMMARY.md",
+      "content": "跑测试命令为 pytest tests/。"
+    },
+    {
+      "fact_id": 1001804,
+      "source_doc_id": 21,
+      "doc_count": 2,
+      "sources": "docs\\achieve\\holo-改造方案.md,docs\\宪法.md",
+      "content": "C. merge 改写 content 防 UNIQUE 冲突。"
+    }
+  ],
+  "source_doc_mismatch_samples": [
+    {
+      "fact_id": 1001112,
+      "source_doc_id": 15,
+      "provenance_doc_id": 20,
+      "source_fact_id": 56,
+      "relation": "merge",
+      "content": "跑测试命令为 pytest tests/。",
+      "source": "docs\\achieve\\CODE_SUMMARY.md"
+    },
+    {
+      "fact_id": 1001804,
+      "source_doc_id": 21,
+      "provenance_doc_id": 25,
+      "source_fact_id": 113,
+      "relation": "merge",
+      "content": "C. merge 改写 content 防 UNIQUE 冲突。",
+      "source": "docs\\宪法.md"
+    }
+  ]
+}

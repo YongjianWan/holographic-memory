@@ -65,6 +65,11 @@
   - 剩余 15 条 doc=None 老 Hindsight 长 fact 已过人眼，全部判 `keep`：它们是历史架构/配置/迁移事实，问题是原子粒度偏粗，不是对话噪音、模型自言自语、触发时间待办或心理动机推断。
   - `reports/dirty_fact_candidates.json`/`.md` 已更新为 `45 keep / 4 dirty / 0 pending`。
   - 本批没有新增 dirty fact，未运行 soft-delete 写库脚本，真实 DB active 数不因此变化。
+- **Source Provenance 报告面细化（2026-06-29）**：
+  - 新增只读脚本 `tests/scripts/run_provenance_audit.py`，通过 SQLite backup API 生成快照后统计 provenance 覆盖，不写 facts/schema/documents/provenance。
+  - 输出：`reports/provenance_audit.md` / `.json`；源库快照为 `reports/snapshots/memory_store_provenance_audit_20260629_153318.db`。
+  - 结果：`facts_active=2195`，`active_known=1162`（52.94%），`active_legacy_unknown=1033`（47.06%），`provenance_rows_total=1169`，`provenance_rows_for_active=1165`。
+  - 多来源 active facts 仅 2 条，`source_doc_id` 与 provenance doc mismatch 样本也为 2 条，均来自 merge 后 survivor 保留单值 `source_doc_id`、而 `fact_provenance` 记录额外来源；这证明报告面能展示“单值归属不是完整 provenance”的边界。
 
 ## 进行中
 
@@ -87,10 +92,11 @@
 - [x] 实施 HRR bank 解耦：`_rebuild_bank` 改写为分片 bank，`probe()` 改为按文档定位 shard 再 bundle/unbind；live DB 已用 backup-first 脚本重建，`project` 最大 bank SNR 由 0.701 升到 2.0。
 - [x] 宪法 §6.3 补 §6.4：项目自身元文档经原子提炼后可入库，不算违反 changelog/操作指令排除条款。
 - [x] 完成当前 49 条 dirty/meta review 候选人工裁决：45 keep / 4 dirty / 0 pending；4 条 dirty 已在第一批软删除，第二批无新增写库动作。
+- [x] 补齐 Source Provenance 只读报告面：当前 active facts 中 1162 known / 1033 legacy_unknown，报告明确展示多文档 merge 来源而不改 schema。
 
 ## 下一步顺序
 
-1. **Source Provenance 报告面细化**：工具输出已经带 `provenance` 摘要；如需审计报告/只读脚本输出更完整来源分布，再补报告层，不再改 schema。
+1. **RQ：决定 HRR 在默认 search 中的去留**：已有 3-way vs 2-way A/B 迹象显示 HRR 对部分查询注入噪音；下一步应基于固定真实查询集验证默认 search 是否降为 FTS5 + Jaccard 两路 RRF，HRR 保留给 `probe` / `related` / `reason`。
 2. **Legacy 长 fact 粒度债（低风险后续）**：15 条 doc=None 老 Hindsight 长 fact 已判 keep，但粒度偏粗；后续若要偿还，应在新 fact 写入验证充分后做“新增更细事实 + 旧粗 fact 软删除/合并”的可审计流程，不物理 DELETE。
 3. **Scope 状态：veto / 待证（与 P2 同构，不可逆闸）**：
    - 彻底冻结 Scope 拆分的开发决策。
