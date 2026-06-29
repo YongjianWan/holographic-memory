@@ -14,6 +14,10 @@
 - [TECH_DEBT.md](../TECH_DEBT.md) — 当前活跃技术债。
 - [SESSION.md](../SESSION.md) — 本轮工作状态。
 
+## 决议补丁（已并入，留痕）
+
+- [决议补丁_lexicon与word2vec射程.md](决议补丁_lexicon与word2vec射程.md) — 2026-06-29 决议：同义/黑话 lexicon 规格、P2 触发刻度(fan-out≥1.5)、word2vec 红线射程澄清(悬置/未拍板)、召回审计=下一步。三块已并入 宪法.md/ROADMAP/SESSION，本文件保留作并入留痕。
+
 ## 设计参考
 
 - [achieve/holo-改造方案.md](achieve/holo-改造方案.md) — 完整改造方案 v3.2（历史设计稿）。
