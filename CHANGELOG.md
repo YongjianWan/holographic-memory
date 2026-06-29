@@ -56,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   changes, so HRR materially affects ranking. Per user decision, HRR remains
   in default `FactRetriever.search()` as the only local weak semantic/structural
   signal under the no-embedding-service constraint.
+- **RRF A/B audit script fixes**: `tests/scripts/run_rrf_ab_audit.py` now runs
+  standalone outside hermes (hermes stubs injected) and applies the same query
+  expansion as `FactRetriever.search()`, so the audit mirrors current default
+  search behavior. Regenerated `reports/rrf_ab_audit.{json,md}`.
 - **Migration v11**: added local `semantic_equivalence_groups` and
   `semantic_equivalence_terms` tables for importing trained synonym/equivalence
   lexicons. Search expands queries from this SQLite table before FTS5/Jaccard/HRR
