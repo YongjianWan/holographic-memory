@@ -37,7 +37,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "Hindsight memory system fixed and running on port 9100. DeepSeek v4 Flash + BAAI/bge-small-en-v1.5 + FlashRank. Migrated to holographic memory provider on 2026-06-15 due to PyTorch embedding model loading failure (Cannot copy out of meta tensor)."
+      "content": "Hindsight memory system fixed and running on port 9100. DeepSeek v4 Flash + BAAI/bge-small-en-v1.5 + FlashRank. Migrated to holographic memory provider on 2026-06-15 due to PyTorch embedding model loading failure (Cannot copy out of meta tensor).",
+      "verdict": "keep"
     },
     {
       "fact_id": 2,
@@ -53,7 +54,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "Policy evaluation platform (aizsgzt-admin) uses five-layer architecture: user entry, business process, Agent application, self-developed Agent Factory core, underlying capability & data resource. Agent application layer includes pre-evaluation Agent, review assistant Agent, report Q&A Agent (implemented), post-evaluation Agent (planned)."
+      "content": "Policy evaluation platform (aizsgzt-admin) uses five-layer architecture: user entry, business process, Agent application, self-developed Agent Factory core, underlying capability & data resource. Agent application layer includes pre-evaluation Agent, review assistant Agent, report Q&A Agent (implemented), post-evaluation Agent (planned).",
+      "verdict": "keep"
     },
     {
       "fact_id": 3,
@@ -69,7 +71,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "Platform uses three vertical LLMs: general LLM, investment attraction vertical LLM, report generation LLM. Data sources include Haier enterprise database (30M+), Jinan policy/land/fund database, industry dynamics, government cloud computing power."
+      "content": "Platform uses three vertical LLMs: general LLM, investment attraction vertical LLM, report generation LLM. Data sources include Haier enterprise database (30M+), Jinan policy/land/fund database, industry dynamics, government cloud computing power.",
+      "verdict": "keep"
     },
     {
       "fact_id": 6,
@@ -85,7 +88,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "Frontend application uses Vue.js with Pinia state management. Routes include static routes and investment workbench hidden routes. Has login/lock screen/dynamic route permission guards. API calls via Axios with baseURL, Token, error handling, and duplicate submission prevention."
+      "content": "Frontend application uses Vue.js with Pinia state management. Routes include static routes and investment workbench hidden routes. Has login/lock screen/dynamic route permission guards. API calls via Axios with baseURL, Token, error handling, and duplicate submission prevention.",
+      "verdict": "keep"
     },
     {
       "fact_id": 7,
@@ -101,7 +105,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "Backend layered architecture: boot, web controller, service layer (AigzsgtAgentChatService for agent chat, CompanyAnalysisService), data access layer. Modules: security (Redis), biz, system, quartz, generator connect to database; agentProxy via HTTP/SSE."
+      "content": "Backend layered architecture: boot, web controller, service layer (AigzsgtAgentChatService for agent chat, CompanyAnalysisService), data access layer. Modules: security (Redis), biz, system, quartz, generator connect to database; agentProxy via HTTP/SSE.",
+      "verdict": "keep"
     },
     {
       "fact_id": 9,
@@ -117,7 +122,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "Skill curation decisions: hermes-self-audit merged into hermes-agent as references/. skill-evaluator merged into l4-skill-forge as evaluation framework. excalidraw-diagram-generator merged into excalidraw. dispatching-parallel-agents merged into subagent-driven-development."
+      "content": "Skill curation decisions: hermes-self-audit merged into hermes-agent as references/. skill-evaluator merged into l4-skill-forge as evaluation framework. excalidraw-diagram-generator merged into excalidraw. dispatching-parallel-agents merged into subagent-driven-development.",
+      "verdict": "keep"
     },
     {
       "fact_id": 16,
@@ -133,7 +139,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "User device ecosystem: Xiaomi (non-Google ecosystem). Calendar does not assume Google Calendar, target is Mi Cloud / enterprise Exchange. Email: Gmail (wan19993300@gmail.com) with app password, IMAP connected via Hermes gateway. 163 (wan199933@163.com): IMAP blocked by server policy, SMTP-only."
+      "content": "User device ecosystem: Xiaomi (non-Google ecosystem). Calendar does not assume Google Calendar, target is Mi Cloud / enterprise Exchange. Email: Gmail (wan19993300@gmail.com) with app password, IMAP connected via Hermes gateway. 163 (wan199933@163.com): IMAP blocked by server policy, SMTP-only.",
+      "verdict": "keep"
     },
     {
       "fact_id": 18,
@@ -149,7 +156,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "User is Feishu super admin. \"Don't mess things up, no need to ask for permission\" positioning. For skill evaluation: assess from AI execution perspective (clear triggers, structured instructions, explicit constraints, failure fallback, fixed output format). Human readability is secondary."
+      "content": "User is Feishu super admin. \"Don't mess things up, no need to ask for permission\" positioning. For skill evaluation: assess from AI execution perspective (clear triggers, structured instructions, explicit constraints, failure fallback, fixed output format). Human readability is secondary.",
+      "verdict": "keep"
     },
     {
       "fact_id": 19,
@@ -165,7 +173,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "Commit review cron job: daily at 9 AM, skill=github-code-review, script=collect_commits.py, deliver=local. Background review prompt updated on 2026-06-02: _SKILL_REVIEW_PROMPT and _COMBINED_REVIEW_PROMPT added HARD RULE - must check skills_list() before creating new skill, patch instead of create when possible. \"Be ACTIVE\" retained. Frequency creation_nudge_interval=15. File: agent/background_review.py."
+      "content": "Commit review cron job: daily at 9 AM, skill=github-code-review, script=collect_commits.py, deliver=local. Background review prompt updated on 2026-06-02: _SKILL_REVIEW_PROMPT and _COMBINED_REVIEW_PROMPT added HARD RULE - must check skills_list() before creating new skill, patch instead of create when possible. \"Be ACTIVE\" retained. Frequency creation_nudge_interval=15. File: agent/background_review.py.",
+      "verdict": "keep"
     },
     {
       "fact_id": 20,
@@ -181,7 +190,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "Quality standards integration belongs to l4-skill-forge layer (eval-cases, release-checklist, l4-standard, score-skill.js), not hermes-agent-skill-authoring. Architecture decision made to separate skill authoring from quality evaluation layers."
+      "content": "Quality standards integration belongs to l4-skill-forge layer (eval-cases, release-checklist, l4-standard, score-skill.js), not hermes-agent-skill-authoring. Architecture decision made to separate skill authoring from quality evaluation layers.",
+      "verdict": "keep"
     },
     {
       "fact_id": 21,
@@ -197,7 +207,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "API keys location (values not stored): KIMI_API_KEY→env, Kimi CLI→~/.kimi/config.toml, GitHub→~/.config/gh/hosts.yml, VolcEngine→ov.conf, SERPER/TUSHARE/ELEVENLABS→env pending configuration. HINDSIGHT_API_KEY in .env but hindsight service dead as of 2026-06-09."
+      "content": "API keys location (values not stored): KIMI_API_KEY→env, Kimi CLI→~/.kimi/config.toml, GitHub→~/.config/gh/hosts.yml, VolcEngine→ov.conf, SERPER/TUSHARE/ELEVENLABS→env pending configuration. HINDSIGHT_API_KEY in .env but hindsight service dead as of 2026-06-09.",
+      "verdict": "keep"
     },
     {
       "fact_id": 22,
@@ -217,7 +228,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "Holographic memory provider activated on 2026-06-15. SQLite database at ~/AppData/Local/hermes/memory_store.db. HRR dimension 1024, auto_extract enabled, default trust 0.5. No external dependencies, no daemon, no model loading. Replaces hindsight which died from PyTorch meta tensor error."
+      "content": "Holographic memory provider activated on 2026-06-15. SQLite database at ~/AppData/Local/hermes/memory_store.db. HRR dimension 1024, auto_extract enabled, default trust 0.5. No external dependencies, no daemon, no model loading. Replaces hindsight which died from PyTorch meta tensor error.",
+      "verdict": "keep"
     },
     {
       "fact_id": 23,
@@ -233,7 +245,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "Hindsight memory export completed on 2026-06-15. 5189 total memory units in PostgreSQL (1312 world, 2422 experience, 1455 observation). 329 valuable world facts filtered and exported to ~/AppData/Local/hermes/hindsight_export.json. Key topics: aizsgzt platform architecture, skill curation decisions, user preferences, API configurations."
+      "content": "Hindsight memory export completed on 2026-06-15. 5189 total memory units in PostgreSQL (1312 world, 2422 experience, 1455 observation). 329 valuable world facts filtered and exported to ~/AppData/Local/hermes/hindsight_export.json. Key topics: aizsgzt platform architecture, skill curation decisions, user preferences, API configurations.",
+      "verdict": "keep"
     },
     {
       "fact_id": 26,
@@ -249,7 +262,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "holographic memory 插件 consolidation 机制改为软删除：consolidate_facts 执行 UPDATE 设置 merged_into 指向合并后的 fact ID，而非物理 DELETE。所有 9 条读取路径（search/list/probe/related/reason/contradict/FTS5 JOIN 等）均过滤 merged_into IS NULL。支持 reactivation：相同内容再次插入时自动清除 merged_into。"
+      "content": "holographic memory 插件 consolidation 机制改为软删除：consolidate_facts 执行 UPDATE 设置 merged_into 指向合并后的 fact ID，而非物理 DELETE。所有 9 条读取路径（search/list/probe/related/reason/contradict/FTS5 JOIN 等）均过滤 merged_into IS NULL。支持 reactivation：相同内容再次插入时自动清除 merged_into。",
+      "verdict": "keep"
     },
     {
       "fact_id": 29,
@@ -265,7 +279,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "holographic memory Schema 迁移框架：schema_version 表 + 自动基线检测 + 迁移前 .db.bak.v{n} 备份（WAL checkpoint 后复制）。外键在迁移期间禁用，完成后重新启用并检查。当前版本 v4：新增 documents 表、text_hash UNIQUE 索引、facts.source_doc_id 外键（ON DELETE SET NULL）、merged_into 列。"
+      "content": "holographic memory Schema 迁移框架：schema_version 表 + 自动基线检测 + 迁移前 .db.bak.v{n} 备份（WAL checkpoint 后复制）。外键在迁移期间禁用，完成后重新启用并检查。当前版本 v4：新增 documents 表、text_hash UNIQUE 索引、facts.source_doc_id 外键（ON DELETE SET NULL）、merged_into 列。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001149,
@@ -281,7 +296,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "migration 框架 + schema_version 已实现（v1-v10）。"
+      "content": "migration 框架 + schema_version 已实现（v1-v10）。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001162,
@@ -297,7 +313,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "启动时按 schema_version 顺序执行 migration。"
+      "content": "启动时按 schema_version 顺序执行 migration。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001183,
@@ -313,7 +330,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "P0 探重的 SQL 不能更新 retrieval_count，也不能过滤低 trust。"
+      "content": "P0 探重的 SQL 不能更新 retrieval_count，也不能过滤低 trust。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001214,
@@ -329,7 +347,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "Test scripts must not touch the real `memory_store.db`."
+      "content": "Test scripts must not touch the real `memory_store.db`.",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001221,
@@ -345,7 +364,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "`search_facts` has the side effect of incrementing `retrieval_count += 1`."
+      "content": "`search_facts` has the side effect of incrementing `retrieval_count += 1`.",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001253,
@@ -361,7 +381,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "Successful search, probe, related, and reason retrievals now increment retrieval_count and refresh last_accessed_at."
+      "content": "Successful search, probe, related, and reason retrievals now increment retrieval_count and refresh last_accessed_at.",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001261,
@@ -377,7 +398,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "On 380 active facts, entity average fan-out was 0.811."
+      "content": "On 380 active facts, entity average fan-out was 0.811.",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001277,
@@ -393,7 +415,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "Schema migration framework has schema_version table, automatic baseline detection, and pre-migration .db.bak.v{n} backups."
+      "content": "Schema migration framework has schema_version table, automatic baseline detection, and pre-migration .db.bak.v{n} backups.",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001368,
@@ -409,7 +432,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "Old active facts are not backfilled with provenance."
+      "content": "Old active facts are not backfilled with provenance.",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001455,
@@ -425,7 +449,8 @@
           "reason": "transient_state:(当前|目前).{0,12}(facts?|条目|token|上下文|slot|槽位)"
         }
       ],
-      "content": "project bank 当前 fact_count 为 933，按 1024 维估算 SNR 约 1.048，仍低于 2.0。"
+      "content": "project bank 当前 fact_count 为 933，按 1024 维估算 SNR 约 1.048，仍低于 2.0。",
+      "verdict": "dirty"
     },
     {
       "fact_id": 1001480,
@@ -441,7 +466,8 @@
           "reason": "transient_state:(当前|目前).{0,12}(facts?|条目|token|上下文|slot|槽位)"
         }
       ],
-      "content": "project category 仍然过宽，当前 fact_count 933，SNR 约 1.048。"
+      "content": "project category 仍然过宽，当前 fact_count 933，SNR 约 1.048。",
+      "verdict": "dirty"
     },
     {
       "fact_id": 1001497,
@@ -457,7 +483,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "Legacy provenance 不回填；旧 active facts 无 provenance 行是诚实状态。"
+      "content": "Legacy provenance 不回填；旧 active facts 无 provenance 行是诚实状态。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001509,
@@ -473,7 +500,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "任何写入真实 memory_store.db 的动作都必须先备份，并将 backup 用作前后 diff 基准。"
+      "content": "任何写入真实 memory_store.db 的动作都必须先备份，并将 backup 用作前后 diff 基准。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001531,
@@ -489,7 +517,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "旧active facts可能没有provenance行，查询侧必须把空行状态读时投影为legacy_unknown。"
+      "content": "旧active facts可能没有provenance行，查询侧必须把空行状态读时投影为legacy_unknown。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001536,
@@ -505,7 +534,8 @@
           "reason": "transient_state:(当前|目前).{0,12}(facts?|条目|token|上下文|slot|槽位)"
         }
       ],
-      "content": "偿还计划：复核当前快照dirty fact候选，确认后通过merged_into软删除。"
+      "content": "偿还计划：复核当前快照dirty fact候选，确认后通过merged_into软删除。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001633,
@@ -521,7 +551,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "最后更新 retrieval_count / last_accessed_at。"
+      "content": "最后更新 retrieval_count / last_accessed_at。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001634,
@@ -537,7 +568,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "核心 schema 表包括 facts、entities、fact_entities、documents、facts_fts、memory_banks、schema_version、gc_log。"
+      "content": "核心 schema 表包括 facts、entities、fact_entities、documents、facts_fts、memory_banks、schema_version、gc_log。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001635,
@@ -553,7 +585,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "facts 表含 content(UNIQUE)、category、trust、retrieval_count、merged_into、hrr_vector。"
+      "content": "facts 表含 content(UNIQUE)、category、trust、retrieval_count、merged_into、hrr_vector。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001641,
@@ -569,7 +602,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "schema_version 和 gc_log 表分别记录 migration 版本和维护日志。"
+      "content": "schema_version 和 gc_log 表分别记录 migration 版本和维护日志。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001647,
@@ -585,7 +619,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "配置项 db_path 默认值为 $HERMES_HOME/memory_store.db。"
+      "content": "配置项 db_path 默认值为 $HERMES_HOME/memory_store.db。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001704,
@@ -601,7 +636,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "已有 retrieval_count 和 helpful_count 计数。"
+      "content": "已有 retrieval_count 和 helpful_count 计数。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001710,
@@ -617,7 +653,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "search_facts 有副作用 retrieval_count += 1。"
+      "content": "search_facts 有副作用 retrieval_count += 1。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001784,
@@ -633,7 +670,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "_find_near_duplicate 用 FTS5 粗筛候选，删 retrieval_count += 1。"
+      "content": "_find_near_duplicate 用 FTS5 粗筛候选，删 retrieval_count += 1。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001795,
@@ -649,7 +687,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "retrieval_count 累加。"
+      "content": "retrieval_count 累加。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001803,
@@ -665,7 +704,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "B. 探重的 FTS5 查询必须删 retrieval_count += 1 且去 trust 过滤，否则污染 GC 信号或漏掉低分重复。"
+      "content": "B. 探重的 FTS5 查询必须删 retrieval_count += 1 且去 trust 过滤，否则污染 GC 信号或漏掉低分重复。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001842,
@@ -681,7 +721,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "Trust衰减依赖P0-B：retrieval_count不被探重污染，信号才可信。"
+      "content": "Trust衰减依赖P0-B：retrieval_count不被探重污染，信号才可信。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001911,
@@ -697,7 +738,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "Version 10 does not write self-referencing provenance placeholders for old active facts; an empty field represents the honest state."
+      "content": "Version 10 does not write self-referencing provenance placeholders for old active facts; an empty field represents the honest state.",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001925,
@@ -713,7 +755,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "This document was last updated based on a snapshot of 1051 active facts."
+      "content": "This document was last updated based on a snapshot of 1051 active facts.",
+      "verdict": "keep"
     },
     {
       "fact_id": 1001935,
@@ -729,7 +772,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "Gate A/B verification must be rerun after the database changed to 1051 active facts."
+      "content": "Gate A/B verification must be rerun after the database changed to 1051 active facts.",
+      "verdict": "dirty"
     },
     {
       "fact_id": 1001953,
@@ -745,7 +789,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "The next step is to rerun Gate A/B based on the 1051 active fact snapshot, first filling in the batch ledger."
+      "content": "The next step is to rerun Gate A/B based on the 1051 active fact snapshot, first filling in the batch ledger.",
+      "verdict": "dirty"
     },
     {
       "fact_id": 1001958,
@@ -761,7 +806,8 @@
           "reason": "long_atomicity_check:>240"
         }
       ],
-      "content": "The data filling approach must never use a full commit because facts cannot be deleted: start with a batch script, test 3-5 core granularities and token cost, then run full volume in time order only if granularity is acceptable, then immediately review 50 entries for go/no-go."
+      "content": "The data filling approach must never use a full commit because facts cannot be deleted: start with a batch script, test 3-5 core granularities and token cost, then run full volume in time order only if granularity is acceptable, then immediately review 50 entries for go/no-go.",
+      "verdict": "keep"
     },
     {
       "fact_id": 1002005,
@@ -777,7 +823,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "N不固定，且都往同一个memory_store.db读写。"
+      "content": "N不固定，且都往同一个memory_store.db读写。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1002014,
@@ -793,7 +840,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "Aiden已确认第三层会发生（开多个Claude Code写同一memory_store.db）。"
+      "content": "Aiden已确认第三层会发生（开多个Claude Code写同一memory_store.db）。",
+      "verdict": "keep"
     },
     {
       "fact_id": 1002171,
@@ -809,7 +857,8 @@
           "reason": "transient_state:(active facts?|schema_version|memory_store\\.db|retrieval_count)"
         }
       ],
-      "content": "B.探重的FTS5查询必须删retrieval_count+=1且去trust过滤（否则污染GC信号/漏低分重复）。"
+      "content": "B.探重的FTS5查询必须删retrieval_count+=1且去trust过滤（否则污染GC信号/漏低分重复）。",
+      "verdict": "keep"
     }
   ]
 }

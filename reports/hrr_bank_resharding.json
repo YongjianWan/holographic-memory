@@ -1,0 +1,172 @@
+{
+  "generated_at": "2026-06-27T19:30:12",
+  "dry_run": false,
+  "db": "C:\\Users\\sdses\\AppData\\Local\\hermes\\memory_store.db",
+  "backup": "C:\\Users\\sdses\\Desktop\\随机小项目\\holographic\\reports\\live_backups\\memory_store_before_hrr_resharding_20260627_193011.db",
+  "categories_rebuilt": [
+    "general",
+    "personal",
+    "project",
+    "user_pref"
+  ],
+  "before": {
+    "bank_count": 4,
+    "max_fact_count": 2083,
+    "max_snr": 0.701,
+    "banks_over_capacity": 1,
+    "top_banks": [
+      {
+        "bank_name": "cat:project",
+        "dim": 1024,
+        "fact_count": 2083,
+        "snr": 0.701
+      },
+      {
+        "bank_name": "cat:personal",
+        "dim": 1024,
+        "fact_count": 110,
+        "snr": 3.051
+      },
+      {
+        "bank_name": "cat:user_pref",
+        "dim": 1024,
+        "fact_count": 6,
+        "snr": 13.064
+      },
+      {
+        "bank_name": "cat:general",
+        "dim": 1024,
+        "fact_count": 1,
+        "snr": 32.0
+      }
+    ]
+  },
+  "after": {
+    "bank_count": 24,
+    "max_fact_count": 256,
+    "max_snr": 2.0,
+    "banks_over_capacity": 0,
+    "top_banks": [
+      {
+        "bank_name": "cat:project|doc:6|shard:00",
+        "dim": 1024,
+        "fact_count": 256,
+        "snr": 2.0
+      },
+      {
+        "bank_name": "cat:project|doc:21|shard:00",
+        "dim": 1024,
+        "fact_count": 247,
+        "snr": 2.036
+      },
+      {
+        "bank_name": "cat:project|doc:1|shard:00",
+        "dim": 1024,
+        "fact_count": 227,
+        "snr": 2.124
+      },
+      {
+        "bank_name": "cat:project|doc:8|shard:00",
+        "dim": 1024,
+        "fact_count": 218,
+        "snr": 2.167
+      },
+      {
+        "bank_name": "cat:project|doc:25|shard:00",
+        "dim": 1024,
+        "fact_count": 208,
+        "snr": 2.219
+      },
+      {
+        "bank_name": "cat:project|doc:15|shard:00",
+        "dim": 1024,
+        "fact_count": 130,
+        "snr": 2.807
+      },
+      {
+        "bank_name": "cat:project|doc:16|shard:00",
+        "dim": 1024,
+        "fact_count": 117,
+        "snr": 2.958
+      },
+      {
+        "bank_name": "cat:personal|doc:9|shard:00",
+        "dim": 1024,
+        "fact_count": 110,
+        "snr": 3.051
+      },
+      {
+        "bank_name": "cat:project|doc:18|shard:00",
+        "dim": 1024,
+        "fact_count": 98,
+        "snr": 3.232
+      },
+      {
+        "bank_name": "cat:project|doc:22|shard:00",
+        "dim": 1024,
+        "fact_count": 94,
+        "snr": 3.301
+      },
+      {
+        "bank_name": "cat:project|doc:17|shard:00",
+        "dim": 1024,
+        "fact_count": 77,
+        "snr": 3.647
+      },
+      {
+        "bank_name": "cat:project|doc:4|shard:00",
+        "dim": 1024,
+        "fact_count": 77,
+        "snr": 3.647
+      },
+      {
+        "bank_name": "cat:project|doc:20|shard:00",
+        "dim": 1024,
+        "fact_count": 70,
+        "snr": 3.825
+      },
+      {
+        "bank_name": "cat:project|doc:19|shard:00",
+        "dim": 1024,
+        "fact_count": 66,
+        "snr": 3.939
+      },
+      {
+        "bank_name": "cat:project|doc:3|shard:00",
+        "dim": 1024,
+        "fact_count": 47,
+        "snr": 4.668
+      },
+      {
+        "bank_name": "cat:project|doc:5|shard:00",
+        "dim": 1024,
+        "fact_count": 46,
+        "snr": 4.718
+      },
+      {
+        "bank_name": "cat:project|doc:23|shard:00",
+        "dim": 1024,
+        "fact_count": 45,
+        "snr": 4.77
+      },
+      {
+        "bank_name": "cat:project|doc:none|shard:00",
+        "dim": 1024,
+        "fact_count": 22,
+        "snr": 6.822
+      },
+      {
+        "bank_name": "cat:project|doc:24|shard:00",
+        "dim": 1024,
+        "fact_count": 14,
+        "snr": 8.552
+      },
+      {
+        "bank_name": "cat:project|doc:7|shard:00",
+        "dim": 1024,
+        "fact_count": 14,
+        "snr": 8.552
+      }
+    ]
+  }
+}

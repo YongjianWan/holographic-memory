@@ -46,6 +46,25 @@
   - `category_source_doc`：23 个虚拟 bank，最大 `cat:project|doc:6` 为 264 facts，SNR 1.969，仍略超 256。
   - `category_document_family`：最大 895 facts，SNR 1.07，不足以解饱和。
   - `category_source_doc_shard256`：24 个虚拟 bank，最大 256 facts，SNR 2.0，`over_capacity=0`；这是当前证据支持的下一步实现候选，且不引入 scope schema。
+- **HRR bank 解耦实施 + 落地（2026-06-27 19:30:11）**：
+  - 代码：`store._rebuild_bank` 改为写 `cat:{category}|doc:{doc}|shard:{nn}` 派生 bank（按 category 分组、组内按 source_doc_id 再分组、组内按 fact_id 排序、每 256 条一个 shard），不再写单一扁平 `cat:{category}` bank；`store._bank_names_for_docs` 新增按 doc 查 shard bank 名。
+  - `retrieval.probe()` 改为先查实体所属 fact 的 source_doc_id，只拉这些 doc 对应的 shard bank 并 bundle 后再 unbind，不再对整个 category 的超位 bank 做 unbind。
+  - 新增单测 `tests/test_retrieval_rrf.py::TestHRRBankSharding`（bank 命名分片化 + 跨文档 probe 仍能找到实体）。全量 `pytest`：142 passed。
+  - 落地脚本：`tests/scripts/run_hrr_bank_resharding.py --yes`，backup-first（`reports/live_backups/memory_store_before_hrr_resharding_20260627_193011.db`），对 live DB 按当前活跃 category 重跑 `_rebuild_bank`。
+  - 结果：`reports/hrr_bank_resharding.md`/`.json`；`project` 最大 bank fact_count 由 2083(SNR 0.701) 降到 256(SNR 2.0)，bank 行数 1→24，`banks_over_capacity` 由 1 降到 0。`integrity_check=ok`，`facts_active` 不变(2199)，未触碰 `facts` 表任何行。
+- **宪法 §6.3 补 §6.4(Aiden 拍板)**：项目自身元文档（宪法.md/AGENTS.md/CHANGELOG.md/ROADMAP.md/SESSION.md/TECH_DEBT.md 等）经标准原子提炼管线写入的 fact 不算违反"changelog/操作指令不进 Holo"——该判据原意是禁止存逐字原文，不是禁止对这类文档做和其他文档一样的原子化提炼。`docs/宪法.md` 已补 §6.4 把这条澄清焊死。
+- **49 条 review 候选人工裁决·第一批（2026-06-27 21:10:46，Aiden 拍板）**：
+  - 49 条里 34 条是项目元文档导入产生的（doc 15/16/18/19/20/21/22/23/25），15 条是 doc=None 的老 Hindsight 时代长 fact（`long_atomicity_check:>240`，跟本次工作无关，留作独立历史债，verdict 仍空）。
+  - 34 条项目元文档候选中，按 §6.4 大多数应判 keep；但其中 4 条不是"该不该进 Holo"的问题，是内容本身已经站不住：
+    - `1001480`/`1001455`：当天分片改动前写的"当前 fact_count 933/SNR 1.048"快照断言，已被 19:30 的 resharding 证伪（现状 256/2.0），不是"无触发时间的客观断言"。
+    - `1001935`/`1001953`：句式是"X 改变后必须重跑 Gate A/B"，按 §6.1 判据其实是带触发条件的待办，不该是 fact；且引用的 1051 快照早已过期（现 2199）。
+  - 已用 `tests/scripts/run_apply_dirty_fact_verdicts.py --yes`（backup-first，`reports/live_backups/memory_store_before_dirty_apply_20260627_211046.db`）软删除这 4 条，写入 `merged_into=999999`，未物理 DELETE。`active_before=2199 → active_after=2195`。
+  - 其余 30 条项目元文档候选 + 这 4 条的 verdict 已写回 `reports/dirty_fact_candidates.json`/`.md`（30 条 `keep`，4 条 `dirty`）；15 条 doc=None 候选 verdict 仍留空，等独立轮次人工过。
+  - apply 记录：`reports/dirty_fact_apply_20260627_211046.md` / `.json`。
+- **49 条 review 候选人工裁决·第二批（2026-06-29）**：
+  - 剩余 15 条 doc=None 老 Hindsight 长 fact 已过人眼，全部判 `keep`：它们是历史架构/配置/迁移事实，问题是原子粒度偏粗，不是对话噪音、模型自言自语、触发时间待办或心理动机推断。
+  - `reports/dirty_fact_candidates.json`/`.md` 已更新为 `45 keep / 4 dirty / 0 pending`。
+  - 本批没有新增 dirty fact，未运行 soft-delete 写库脚本，真实 DB active 数不因此变化。
 
 ## 进行中
 
@@ -65,21 +84,21 @@
 - [x] 生成整库 dirty/meta 候选人工确认报告；当前只读口径为 50 条候选（1 条 likely_dirty / 49 条 review）。
 - [x] 软删除唯一明确 dirty fact `1000145`；写后只读口径为 49 条 review 候选，无 likely_dirty。
 - [x] 完成 HRR bank 解耦只读审计；`source_doc_id + shard256` 可把最大 bank 从 2083 压到 256，清掉容量超载。
+- [x] 实施 HRR bank 解耦：`_rebuild_bank` 改写为分片 bank，`probe()` 改为按文档定位 shard 再 bundle/unbind；live DB 已用 backup-first 脚本重建，`project` 最大 bank SNR 由 0.701 升到 2.0。
+- [x] 宪法 §6.3 补 §6.4：项目自身元文档经原子提炼后可入库，不算违反 changelog/操作指令排除条款。
+- [x] 完成当前 49 条 dirty/meta review 候选人工裁决：45 keep / 4 dirty / 0 pending；4 条 dirty 已在第一批软删除，第二批无新增写库动作。
 
 ## 下一步顺序
 
-1. **整库干净度人工确认**：基于 `reports/dirty_fact_candidates.md` 对剩余 49 条 review 候选填 verdict；确认后通过 `merged_into` 软删除/标记处理，禁止物理 DELETE。
-2. **解 HRR 饱和方案解耦实施**：
-   - 基于 `reports/hrr_bank_partition_audit.md` 实现 `category_source_doc_shard256` 派生/运行时 bank 方案：按 category + source_doc_id + fact_id 顺序 shard，目标是不改 scope schema、不写 `facts.scope`、不引入 embedding。
-   - 实现前先明确 retrieval 端如何选 bank：query 若限定/命中文档来源可用 doc bank，否则仍以 FTS/Jaccard 候选为主，HRR 只作弱信号或 probe/reason 辅助。
-3. **Source Provenance 报告面细化**：工具输出已经带 `provenance` 摘要；如需审计报告/只读脚本输出更完整来源分布，再补报告层，不再改 schema。
-4. **Scope 状态：veto / 待证（与 P2 同构，不可逆闸）**：
+1. **Source Provenance 报告面细化**：工具输出已经带 `provenance` 摘要；如需审计报告/只读脚本输出更完整来源分布，再补报告层，不再改 schema。
+2. **Legacy 长 fact 粒度债（低风险后续）**：15 条 doc=None 老 Hindsight 长 fact 已判 keep，但粒度偏粗；后续若要偿还，应在新 fact 写入验证充分后做“新增更细事实 + 旧粗 fact 软删除/合并”的可审计流程，不物理 DELETE。
+3. **Scope 状态：veto / 待证（与 P2 同构，不可逆闸）**：
    - 彻底冻结 Scope 拆分的开发决策。
    - **解冻条件**：在真实使用中撞到“必须依靠域过滤才能答得了”的真实查询（需求驱动），而非“数据攒够”或“分类标签重构”等伪数据驱动。在此之前，不编写任何 Scope 相关的 schema 迁移或处理代码。
 
 ## 已知陷阱（临时）
 
-- `project` category 仍然过宽；项目文档导入后 fact_count 2083，1024 维估算 SNR 约 0.701。
+- `project` category 已分片（见上方 HRR bank 解耦），不再是单一扁平 bank；2026-06-27 之前记录的"fact_count 2083/SNR 0.701"是分片前的旧状态，已被本节其余条目的新记录取代。
 - **评估器判定边缘指令/主客观事实系统性不稳**：例如 ID 40（"算法跑分不限五个..."）与 ID 1000023（"汇报 PPT 不能展示零"）等边缘指令句，评估器极易抖动。在 Gate A 的 50 条肉眼 Go/No-Go 判定中，决不能迷信评估器单次结果，必须依靠人眼进行最终裁决。
 - 当前 reports 目录包含多轮脚本产物，不能默认 `reports/scope_gate_audit.md` 就是最新全库报告。
 - 不要直接在活 WAL 库上做结论性审计；先快照，再读快照。

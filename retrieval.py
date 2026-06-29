@@ -220,15 +220,30 @@ class FactRetriever:
         entity_vec = hrr.encode_atom(entity.lower(), self.hrr_dim)
         probe_key = hrr.bind(entity_vec, role_entity)
 
-        # Try category-specific bank first, then linked facts directly
+        # Try category-specific sharded banks first, then linked facts directly.
+        # Banks are sharded by source_doc_id (see store._rebuild_bank), so we
+        # only need the shards covering this entity's own facts — bundling
+        # just those keeps the unbind signal localized instead of unbinding
+        # against the whole (noisier) category-wide superposition.
         if category:
-            bank_name = f"cat:{category}"
-            bank_row = conn.execute(
-                "SELECT vector FROM memory_banks WHERE bank_name = ?",
-                (bank_name,),
-            ).fetchone()
-            if bank_row:
-                bank_vec = hrr.bytes_to_phases(bank_row["vector"])
+            placeholders = ",".join("?" * len(entity_fact_ids))
+            doc_ids = {
+                row["source_doc_id"]
+                for row in conn.execute(
+                    f"SELECT DISTINCT source_doc_id FROM facts "
+                    f"WHERE category = ? AND fact_id IN ({placeholders})",
+                    (category, *entity_fact_ids),
+                ).fetchall()
+            }
+            bank_names = self.store._bank_names_for_docs(category, doc_ids)
+            if bank_names:
+                bank_placeholders = ",".join("?" * len(bank_names))
+                bank_rows = conn.execute(
+                    f"SELECT vector FROM memory_banks WHERE bank_name IN ({bank_placeholders})",
+                    bank_names,
+                ).fetchall()
+                bank_vectors = [hrr.bytes_to_phases(r["vector"]) for r in bank_rows]
+                bank_vec = hrr.bundle(*bank_vectors)
                 extracted = hrr.unbind(bank_vec, probe_key)
                 results = self._score_facts_by_vector(
                     extracted, category=category, limit=limit, fact_ids=entity_fact_ids

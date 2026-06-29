@@ -234,6 +234,60 @@ class TestEntityPrefilteredQueries:
         assert isinstance(results, list)
 
 
+class TestHRRBankSharding:
+    """Memory banks are sharded per (category, source_doc_id, shard-of-capacity)
+    instead of one flat per-category bundle. See store._rebuild_bank and
+    reports/hrr_bank_partition_audit.md."""
+
+    def test_bank_names_are_sharded_not_flat(self, retriever: FactRetriever) -> None:
+        retriever.store.add_fact('"Python" is a programming language', category='project')
+
+        bank_names = [
+            row['bank_name']
+            for row in retriever.store._conn.execute(
+                "SELECT bank_name FROM memory_banks"
+            ).fetchall()
+        ]
+        assert bank_names
+        assert all(name.startswith('cat:project|doc:') for name in bank_names)
+        assert 'cat:project' not in bank_names
+
+    def test_probe_combines_shards_across_source_docs(
+        self, retriever: FactRetriever
+    ) -> None:
+        # Same entity, facts attributed to two different source documents —
+        # each document gets its own shard. probe() must bundle both shards
+        # to find the entity instead of only checking one doc's bank.
+        conn = retriever.store._conn
+        conn.execute(
+            "INSERT INTO documents (doc_id, raw_text, text_hash, source) VALUES (1, 'a', 'hash-a', 'doc-a')"
+        )
+        conn.execute(
+            "INSERT INTO documents (doc_id, raw_text, text_hash, source) VALUES (2, 'b', 'hash-b', 'doc-b')"
+        )
+        conn.commit()
+        retriever.store.add_fact(
+            '"Python" is used for scripting', category='project', source_doc_id=1
+        )
+        retriever.store.add_fact(
+            '"Python" is used for data science', category='project', source_doc_id=2
+        )
+
+        bank_names = {
+            row['bank_name']
+            for row in retriever.store._conn.execute(
+                "SELECT bank_name FROM memory_banks"
+            ).fetchall()
+        }
+        assert 'cat:project|doc:1|shard:00' in bank_names
+        assert 'cat:project|doc:2|shard:00' in bank_names
+
+        results = retriever.probe('Python', category='project')
+        contents = {r['content'] for r in results}
+        assert any('scripting' in c for c in contents)
+        assert any('data science' in c for c in contents)
+
+
 class TestRRFInternals:
     def test_ftsr_ranking_returns_one_indexed_ranks(
         self, retriever: FactRetriever

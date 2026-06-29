@@ -1,0 +1,89 @@
+{
+  "generated_at": "2026-06-27T21:10:22",
+  "dry_run": true,
+  "db": "C:\\Users\\sdses\\AppData\\Local\\hermes\\memory_store.db",
+  "candidate_report": "reports\\dirty_fact_candidates.json",
+  "backup": null,
+  "selected_fact_ids": [
+    1001455,
+    1001480,
+    1001935,
+    1001953
+  ],
+  "before": {
+    "facts_total": 4347,
+    "facts_active": 2199,
+    "facts_soft_deleted": 2148,
+    "selected": [
+      {
+        "fact_id": 1001455,
+        "content": "project bank 当前 fact_count 为 933，按 1024 维估算 SNR 约 1.048，仍低于 2.0。",
+        "category": "project",
+        "source_doc_id": 18,
+        "merged_into": null
+      },
+      {
+        "fact_id": 1001480,
+        "content": "project category 仍然过宽，当前 fact_count 933，SNR 约 1.048。",
+        "category": "project",
+        "source_doc_id": 18,
+        "merged_into": null
+      },
+      {
+        "fact_id": 1001935,
+        "content": "Gate A/B verification must be rerun after the database changed to 1051 active facts.",
+        "category": "project",
+        "source_doc_id": 22,
+        "merged_into": null
+      },
+      {
+        "fact_id": 1001953,
+        "content": "The next step is to rerun Gate A/B based on the 1051 active fact snapshot, first filling in the batch ledger.",
+        "category": "project",
+        "source_doc_id": 22,
+        "merged_into": null
+      }
+    ],
+    "sentinel_exists": true
+  },
+  "after": {
+    "facts_total": 4347,
+    "facts_active": 2199,
+    "facts_soft_deleted": 2148,
+    "selected": [
+      {
+        "fact_id": 1001455,
+        "content": "project bank 当前 fact_count 为 933，按 1024 维估算 SNR 约 1.048，仍低于 2.0。",
+        "category": "project",
+        "source_doc_id": 18,
+        "merged_into": null
+      },
+      {
+        "fact_id": 1001480,
+        "content": "project category 仍然过宽，当前 fact_count 933，SNR 约 1.048。",
+        "category": "project",
+        "source_doc_id": 18,
+        "merged_into": null
+      },
+      {
+        "fact_id": 1001935,
+        "content": "Gate A/B verification must be rerun after the database changed to 1051 active facts.",
+        "category": "project",
+        "source_doc_id": 22,
+        "merged_into": null
+      },
+      {
+        "fact_id": 1001953,
+        "content": "The next step is to rerun Gate A/B based on the 1051 active fact snapshot, first filling in the batch ledger.",
+        "category": "project",
+        "source_doc_id": 22,
+        "merged_into": null
+      }
+    ],
+    "sentinel_exists": true
+  },
+  "apply_result": {
+    "updated": 0,
+    "categories": []
+  }
+}

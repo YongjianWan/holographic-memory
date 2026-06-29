@@ -1394,44 +1394,89 @@ class MemoryStore:
                 self._conn.commit()
 
     def _rebuild_bank(self, category: str, *, commit: bool = True) -> None:
-        """Full rebuild of a category's memory bank from all its fact vectors."""
+        """Full rebuild of a category's memory banks from all its fact vectors.
+
+        Banks are sharded by (source_doc_id, shard-of-256) instead of one flat
+        per-category bundle. A flat bank degrades past dim//4 items (SNR < 2.0
+        once a category exceeds ~256 facts); sharding keeps each bundle under
+        capacity without introducing a scope schema. See
+        reports/hrr_bank_partition_audit.md for the measured comparison.
+        """
         with self._lock:
             if not self._hrr_available:
                 return
 
-            bank_name = f"cat:{category}"
+            # Clear this category's banks: the legacy flat key and any
+            # previously written shards (shard boundaries shift as facts are
+            # added/merged, so stale shard rows must be dropped before rebuild).
+            self._conn.execute(
+                "DELETE FROM memory_banks WHERE bank_name = ? OR bank_name LIKE ?",
+                (f"cat:{category}", f"cat:{category}|%"),
+            )
+
             rows = self._conn.execute(
-                "SELECT hrr_vector FROM facts WHERE category = ? AND hrr_vector IS NOT NULL AND merged_into IS NULL",
+                "SELECT fact_id, source_doc_id, hrr_vector FROM facts "
+                "WHERE category = ? AND hrr_vector IS NOT NULL AND merged_into IS NULL",
                 (category,),
             ).fetchall()
 
             if not rows:
-                self._conn.execute("DELETE FROM memory_banks WHERE bank_name = ?", (bank_name,))
                 if commit:
                     self._conn.commit()
                 return
 
-            vectors = [hrr.bytes_to_phases(row["hrr_vector"]) for row in rows]
-            bank_vector = hrr.bundle(*vectors)
-            fact_count = len(vectors)
+            shard_size = max(1, self.hrr_dim // 4)
+            doc_groups: dict = {}
+            for row in rows:
+                doc_groups.setdefault(row["source_doc_id"], []).append(row)
 
-            # Check SNR
-            hrr.snr_estimate(self.hrr_dim, fact_count)
+            sharded_blobs: dict[str, list] = {}
+            for doc_id, group_rows in doc_groups.items():
+                group_rows.sort(key=lambda r: r["fact_id"])
+                doc_key = doc_id if doc_id is not None else "none"
+                for index, row in enumerate(group_rows):
+                    shard = index // shard_size
+                    bank_name = f"cat:{category}|doc:{doc_key}|shard:{shard:02d}"
+                    sharded_blobs.setdefault(bank_name, []).append(row["hrr_vector"])
 
-            self._conn.execute(
-                """
-                INSERT INTO memory_banks (bank_name, vector, dim, fact_count, updated_at)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(bank_name) DO UPDATE SET
-                    vector = excluded.vector,
-                    dim = excluded.dim,
-                    fact_count = excluded.fact_count,
-                    updated_at = excluded.updated_at
-                """,
-                (bank_name, hrr.phases_to_bytes(bank_vector), self.hrr_dim, fact_count),
-            )
+            for bank_name, blobs in sharded_blobs.items():
+                vectors = [hrr.bytes_to_phases(blob) for blob in blobs]
+                bank_vector = hrr.bundle(*vectors)
+                fact_count = len(vectors)
+
+                # Check SNR
+                hrr.snr_estimate(self.hrr_dim, fact_count)
+
+                self._conn.execute(
+                    """
+                    INSERT INTO memory_banks (bank_name, vector, dim, fact_count, updated_at)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(bank_name) DO UPDATE SET
+                        vector = excluded.vector,
+                        dim = excluded.dim,
+                        fact_count = excluded.fact_count,
+                        updated_at = excluded.updated_at
+                    """,
+                    (bank_name, hrr.phases_to_bytes(bank_vector), self.hrr_dim, fact_count),
+                )
             if commit:
                 self._conn.commit()
+
+    def _bank_names_for_docs(self, category: str, doc_ids: set) -> list:
+        """Return existing sharded bank names for a category, restricted to given source_doc_ids.
+
+        `doc_ids` may contain `None` for facts with no source document; this is
+        normalized to the same "none" key used by `_rebuild_bank`.
+        """
+        names: list = []
+        for doc_id in doc_ids:
+            doc_key = doc_id if doc_id is not None else "none"
+            rows = self._conn.execute(
+                "SELECT bank_name FROM memory_banks WHERE bank_name LIKE ?",
+                (f"cat:{category}|doc:{doc_key}|shard:%",),
+            ).fetchall()
+            names.extend(row["bank_name"] for row in rows)
+        return names
 
     def rebuild_all_vectors(self, dim: int | None = None) -> int:
         """Recompute all HRR vectors + banks from text. For recovery/migration.

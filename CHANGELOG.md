@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **HRR bank sharding**: `store._rebuild_bank` now writes `cat:{category}|doc:{doc}|shard:{nn}`
+  banks instead of one flat `cat:{category}` bundle, per the
+  `category_source_doc_shard256` scheme measured in
+  `reports/hrr_bank_partition_audit.md`. `probe()` resolves the shards
+  covering an entity's own facts and bundles only those before unbinding,
+  instead of unbinding against the whole (noisier) category bank. No scope
+  schema introduced. Live DB resharded via
+  `tests/scripts/run_hrr_bank_resharding.py --yes`: `project` bank max
+  fact_count dropped from 2083 (SNR 0.701) to 256 (SNR 2.0), 0 banks over
+  capacity.
+- **Decision record**: project's own meta-documents (宪法.md, AGENTS.md,
+  CHANGELOG.md, ROADMAP.md, SESSION.md, TECH_DEBT.md) may be retained into
+  Holo as atomized facts; the prior §6.3 exclusion only bars storing their
+  raw verbatim text as instructions/changelog entries, not running them
+  through the same atomic-extraction pipeline as any other document.
+  Recorded as `docs/宪法.md` §6.4.
+- Dirty-fact human review, batch 1: of the 49 review candidates, 34 came
+  from the project-document import (doc 15-25). 30 verdicted `keep` under
+  §6.4; 4 verdicted `dirty` and soft-deleted via
+  `tests/scripts/run_apply_dirty_fact_verdicts.py --yes` (backup-first,
+  `merged_into=999999`) because their content was independently wrong, not
+  because of where they came from — two (`1001480`, `1001455`) asserted a
+  "current" HRR bank fact_count/SNR snapshot already falsified by the same
+  day's resharding, two (`1001935`, `1001953`) were trigger-conditioned
+  to-dos ("rerun Gate A/B after the DB changes") miscategorized as facts
+  per §6.1. The remaining 15 candidates (doc=None, legacy Hindsight-era,
+  flagged `long_atomicity_check`) are unrelated history debt left pending
+  for a separate review pass.
+- Dirty-fact human review, batch 2: the remaining 15 doc=None legacy
+  Hindsight-era candidates were human-reviewed and verdicted `keep`. They are
+  valid historical architecture/configuration/migration facts, but too coarse
+  as atomic facts; this is tracked as a legacy granularity debt rather than
+  dirty data. The dirty candidate report now records `45 keep / 4 dirty / 0
+  pending`. No additional soft-delete/write-to-live-DB action was needed.
 - **Decision record**: retrieval remains grep/FTS/Jaccard-first. Missing
   embedding-based semantic recall is an accepted local/no-daemon tradeoff, not
   current technical debt; future recall improvements should prefer query
