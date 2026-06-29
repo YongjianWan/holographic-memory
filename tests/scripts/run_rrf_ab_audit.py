@@ -167,9 +167,12 @@ def evaluate_query(
     pool: int = 100,
     limit: int = 5,
 ) -> dict[str, Any]:
-    fts_ranking = retriever._fts_ranking(query, category, min_trust, pool)
-    jaccard_ranking = retriever._jaccard_ranking(query, category, min_trust, pool)
-    hrr_ranking = retriever._hrr_ranking(query, category, min_trust, pool)
+    expanded_query = retriever._expand_query_with_equivalences(query)
+    fts_ranking = retriever._fts_ranking(expanded_query, category, min_trust, pool)
+    jaccard_ranking = retriever._jaccard_ranking(
+        expanded_query, category, min_trust, pool
+    )
+    hrr_ranking = retriever._hrr_ranking(expanded_query, category, min_trust, pool)
 
     candidate_ids = set(fts_ranking) | set(jaccard_ranking) | set(hrr_ranking)
     rows = retriever._fetch_facts(candidate_ids, category, min_trust)
