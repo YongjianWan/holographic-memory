@@ -1,0 +1,28 @@
+{
+  "_README": "召回审计探针模板。复制为 recall_probes.json 后删改/扩充，再跑：python tests/scripts/run_recall_audit.py --db <live.db> --probes tests/scripts/recall_probes.json。每条探针 query 故意用目标 fact 里没有的同义/黑话词；expect 是目标 fact 的一段独特子串（命中即该 fact 被召回）。MISS = 词面搭不上桥 → 去报告里人眼手标 miss_type：黑话 / 通用同义 / absent。下面的例子都扎在 2026-06-29 真实库快照内容上，是起点不是终点——真实结论需要你按自己语料扩到几十条。控制项(control)用来验证脚本本身不假阳/假阴。",
+  "_方法论警告": "⚠️ 干净探针纪律：query 除了『被测同义词』外，不要含任何也出现在目标 fact 里的词。否则会经那些词命中目标、绕过同义桥，把 MISS 掩盖成假 HIT（lexicon 会显得比实际更不需要 = 成果幻觉）。例：测『薪水→工资』时，query 写『月薪 多少』而不是『薪水 西安 offer』——后者会靠『西安/offer』命中，根本没测到桥。中文 FTS/Jaccard 偏字符级，连共享单字（去/重）都可能搭桥，所以要刻意避开与目标共享的字词。",
+  "_labels": {
+    "黑话": "自造词/项目内行话，通用词典与 word2vec 都瞎，只有读你语料的 LLM 能搭桥（如 探重==去重）。→ 填进 semantic_equivalence_* 当 lexicon 种子。",
+    "通用同义": "词典级同义（如 工资==薪水、备份==backup）。可由通用同义词林覆盖，不一定要 lexicon。",
+    "absent": "目标其实不在库里，不是召回缺陷。"
+  },
+  "probes": [
+    {"query": "P0 探重 必须在 INSERT 之前", "expect": "探重必须在INSERT", "note": "control-HIT：query 含本词『探重』，应命中。验证脚本不假阴。"},
+    {"query": "gc_decay_floor 默认值是多少", "expect": "gc_decay_floor", "note": "control-HIT：精确配置项名应命中。"},
+    {"query": "Gate B 首次审计 NO-GO", "expect": "NO-GO", "note": "control-HIT：应命中 Gate B 审计结论。"},
+    {"query": "Kubernetes pod 编排 部署", "expect": "Kubernetes", "note": "control-ABSENT：库里没有 k8s，应 MISS 且标 absent；验证脚本不假阳。"},
+
+    {"query": "去重 在写入之前执行", "expect": "探重", "note": "黑话候选：探重 == 去重 / dedup。若 MISS → 种子对 探重/去重。"},
+    {"query": "过度提取 比率 26.6%", "expect": "过抽率", "note": "黑话候选：过抽率 == 过度提取率 / over-extraction rate。"},
+    {"query": "退出闸门 拦截无出处 observation", "expect": "出口闸", "note": "黑话候选：出口闸 == 退出闸门 / exit gate。"},
+    {"query": "读取路径 日常高频", "expect": "读路径", "note": "黑话候选：读路径 == 读取路径 / read path。"},
+    {"query": "实体扇出 过低 否决图边", "expect": "fan-out", "note": "黑话候选：fan-out == 扇出。中英混写的同义盲区。"},
+    {"query": "时间线归并 措辞不同的同一事实", "expect": "时间线收敛", "note": "黑话候选：收敛 == 归并 / converge。"},
+    {"query": "啰嗦的长内容 扣分 但不过度惩罚", "expect": "log(长度)", "note": "黑话候选：分母 log(长度) 的口语描述能否召回公式 fact。"},
+
+    {"query": "航天器 入轨 质量", "expect": "卫星", "note": "通用同义候选：卫星 == 航天器。已剔除与目标共享的『火箭/500』，干净测桥。"},
+    {"query": "月薪 多少钱", "expect": "工资", "note": "通用同义候选：工资 == 月薪 / 薪水。已剔除『西安/offer』，避免靠它们假命中。"},
+    {"query": "数据备份 写库之前", "expect": "backup", "note": "通用同义候选：备份 == backup（中英同义）。"},
+    {"query": "CV 个人简介 写得不错", "expect": "简历", "note": "通用同义候选：简历 == CV / 个人简介。"}
+  ]
+}

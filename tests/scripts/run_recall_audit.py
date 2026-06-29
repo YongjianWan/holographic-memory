@@ -375,7 +375,9 @@ def main() -> None:
     parser.add_argument(
         "--probes",
         type=Path,
-        help="JSON list of {query, expect, note}. Defaults to the tiny SEED_PROBES.",
+        help="JSON list (or {\"probes\": [...]}) of {query, expect, note}. Copy "
+        "tests/scripts/recall_probes.template.json and edit it. Defaults to the "
+        "tiny SEED_PROBES if omitted.",
     )
     parser.add_argument("--output-dir", type=Path, default=Path("reports"))
     parser.add_argument("--snapshot-dir", type=Path, default=Path("reports/snapshots"))
